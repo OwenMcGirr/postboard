@@ -57,7 +57,7 @@ export class PublerClient {
   }
 
   getAccounts() {
-    return this.request<{ accounts: PublerAccount[] }>("/accounts");
+    return this.request<PublerAccount[]>("/accounts");
   }
 
   getPosts(params?: PostsQueryParams) {

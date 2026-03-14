@@ -29,7 +29,7 @@ export function useAccounts() {
     () => client!.getAccounts(),
     { revalidateOnFocus: false }
   );
-  return { accounts: data?.accounts ?? [], isLoading, isError: !!error };
+  return { accounts: data ?? [], isLoading, isError: !!error };
 }
 
 export function usePosts(params: PostsQueryParams | null) {
