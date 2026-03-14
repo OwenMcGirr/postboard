@@ -1,12 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, PenSquare, List, Image, Settings } from "lucide-react";
+import { LayoutDashboard, PenSquare, List, Image } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/compose", label: "Compose", icon: PenSquare },
   { href: "/posts", label: "Posts", icon: List },
   { href: "/media", label: "Media", icon: Image },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function BottomNav() {

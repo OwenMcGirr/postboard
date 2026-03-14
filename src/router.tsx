@@ -1,6 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
-import { AuthGuard } from "@/components/auth-guard";
 import { LayoutShell } from "@/components/layout-shell";
 
 function Loading() {
@@ -19,7 +18,6 @@ function withSuspense(Component: React.LazyExoticComponent<React.ComponentType>)
   );
 }
 
-const SettingsPage = lazy(() => import("./app/settings/page"));
 const DashboardPage = lazy(() => import("./app/dashboard/page"));
 const ComposePage = lazy(() => import("./app/compose/page"));
 const PostsPage = lazy(() => import("./app/posts/page"));
@@ -27,19 +25,13 @@ const MediaPage = lazy(() => import("./app/media/page"));
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/dashboard" replace /> },
-  { path: "/settings", element: withSuspense(SettingsPage) },
   {
-    element: <AuthGuard />,
+    element: <LayoutShell />,
     children: [
-      {
-        element: <LayoutShell />,
-        children: [
-          { path: "/dashboard", element: withSuspense(DashboardPage) },
-          { path: "/compose", element: withSuspense(ComposePage) },
-          { path: "/posts", element: withSuspense(PostsPage) },
-          { path: "/media", element: withSuspense(MediaPage) },
-        ],
-      },
+      { path: "/dashboard", element: withSuspense(DashboardPage) },
+      { path: "/compose", element: withSuspense(ComposePage) },
+      { path: "/posts", element: withSuspense(PostsPage) },
+      { path: "/media", element: withSuspense(MediaPage) },
     ],
   },
 ]);

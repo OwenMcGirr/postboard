@@ -23,7 +23,7 @@ export default function ComposePage() {
   }
 
   async function submit() {
-    if (!client || !text.trim() || selectedAccounts.length === 0 || !scheduledAt) return;
+    if (!text.trim() || selectedAccounts.length === 0 || !scheduledAt) return;
     setSubmitting(true);
     setError("");
     setJobId(null);
