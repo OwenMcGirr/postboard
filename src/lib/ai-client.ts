@@ -12,7 +12,8 @@ export const aiClient = new OpenAI({
 
 export const AI_MODEL = (import.meta.env.VITE_AI_MODEL as string) ?? "openai/gpt-4o";
 
-const SYSTEM_PROMPT = `You are a social media copywriter specialising in LinkedIn content for a tech founder.
+// Edit this to match your voice and audience.
+const SYSTEM_PROMPT = `You are a social media copywriter specialising in LinkedIn content.
 Write posts that are direct, confident, and specific — no fluff, no buzzwords, no emojis unless asked.
 Keep it conversational and human. Use short paragraphs.
 When given a brief, produce a complete, ready-to-post LinkedIn post.
