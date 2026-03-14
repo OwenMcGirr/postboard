@@ -26,13 +26,17 @@ export default function ComposePage() {
   const { status } = useJobStatus(jobId);
   const abortRef = useRef(false);
 
-  function generate(userMessage: string) {
+  function generate(userMessage: string, isRefinement = false) {
     abortRef.current = false;
     setStreaming(true);
     setPostText("");
     setStage("compose");
 
-    const newMessages: Message[] = [...messages, { role: "user", content: userMessage }];
+    const content = isRefinement
+      ? `Refine the post above. Instruction: ${userMessage}`
+      : userMessage;
+
+    const newMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(newMessages);
 
     let buffer = "";
@@ -64,7 +68,7 @@ export default function ComposePage() {
     if (!refinement.trim() || streaming) return;
     const instruction = refinement.trim();
     setRefinement("");
-    generate(instruction);
+    generate(instruction, true);
   }
 
   function reset() {
@@ -200,7 +204,7 @@ export default function ComposePage() {
                 ].map((q) => (
                   <button
                     key={q}
-                    onClick={() => generate(q)}
+                    onClick={() => generate(q, true)}
                     className="px-3 py-1.5 text-xs text-gray-300 bg-gray-800 hover:bg-gray-700 hover:text-white rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
                   >
                     {q}
@@ -238,7 +242,7 @@ export default function ComposePage() {
                 Schedule this post
               </button>
               <button
-                onClick={() => generate(brief)}
+                onClick={() => { setMessages([]); generate(brief); }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-lg transition-colors"
               >
                 <Sparkles className="w-4 h-4" />
