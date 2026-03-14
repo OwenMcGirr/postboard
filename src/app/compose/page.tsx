@@ -90,12 +90,20 @@ export default function ComposePage() {
     setSubmitting(true);
     setSubmitError("");
     try {
+      const selectedAccountObjects = accounts.filter((a) => selectedAccounts.includes(a.id));
+      const networks = Object.fromEntries(
+        [...new Set(selectedAccountObjects.map((a) => a.provider))].map((provider) => [
+          provider,
+          { type: "status", text: postText.trim() },
+        ])
+      );
+
       const result = await client.schedulePost({
         bulk: {
           state: "scheduled",
           posts: [
             {
-              networks: { linkedin: { type: "status", text: postText.trim() } },
+              networks,
               accounts: selectedAccounts.map((id) => ({
                 id,
                 scheduled_at: new Date(scheduledAt).toISOString(),

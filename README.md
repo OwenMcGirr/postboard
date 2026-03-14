@@ -1,6 +1,6 @@
 # Postboard
 
-A personal tool for composing and scheduling LinkedIn posts with AI. Built with React, Vite, and OpenRouter.
+A personal tool for composing and scheduling social media posts with AI. Built with React, Vite, and OpenRouter. Supports any platform connected to your Publer account (LinkedIn, X, Facebook, Instagram, etc.).
 
 ## Features
 
