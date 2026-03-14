@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+:root {
+  --color-sky-400: #38bdf8;
+  --color-sky-500: #0ea5e9;
+}
