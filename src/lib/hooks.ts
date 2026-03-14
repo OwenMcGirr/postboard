@@ -19,7 +19,7 @@ export function useWorkspaces() {
     () => client!.getWorkspaces(),
     { revalidateOnFocus: false }
   );
-  return { workspaces: data?.workspaces ?? [], isLoading, isError: !!error };
+  return { workspaces: data ?? [], isLoading, isError: !!error };
 }
 
 export function useAccounts() {

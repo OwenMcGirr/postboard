@@ -53,7 +53,7 @@ export class PublerClient {
   }
 
   getWorkspaces() {
-    return this.request<{ workspaces: PublerWorkspace[] }>("/workspaces");
+    return this.request<PublerWorkspace[]>("/workspaces");
   }
 
   getAccounts() {

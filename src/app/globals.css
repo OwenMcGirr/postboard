@@ -4,3 +4,11 @@
   --color-sky-400: #38bdf8;
   --color-sky-500: #0ea5e9;
 }
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  background-color: #030712;
+  color: #fff;
+}

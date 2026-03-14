@@ -22,8 +22,8 @@ export default function SettingsPage() {
     setTestMessage("");
     try {
       const client = new PublerClient(tokenInput.trim(), "placeholder");
-      const { workspaces: ws } = await client.getWorkspaces();
-      setWorkspaces(ws);
+      const ws = await client.getWorkspaces();
+      setWorkspaces(Array.isArray(ws) ? ws : (ws as { workspaces: PublerWorkspace[] }).workspaces ?? []);
       setTestStatus("ok");
       setTestMessage("Connection successful");
     } catch {
@@ -39,6 +39,7 @@ export default function SettingsPage() {
   }
 
   return (
+    <div className="min-h-screen bg-gray-950 px-4 py-12 md:px-8">
     <div className="max-w-lg">
       <h1 className="text-2xl font-bold mb-1">Settings</h1>
       <p className="text-gray-400 mb-8 text-sm">Connect your Publer account to get started.</p>
@@ -124,6 +125,7 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
