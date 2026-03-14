@@ -44,7 +44,7 @@ export function useJobStatus(jobId: string | null) {
     jobId ? ["job_status", jobId] : null,
     () => client.getJobStatus(jobId!),
     {
-      refreshInterval: (d) => (!d || d.status === "pending" ? 2000 : 0),
+      refreshInterval: (d) => (!d || d.status === "pending" ? 1500 : 0),
       revalidateOnFocus: false,
     }
   );

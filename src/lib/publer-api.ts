@@ -50,7 +50,7 @@ export interface PublerPost {
 }
 
 export interface PublerJobStatus {
-  status: "pending" | "completed" | "failed";
+  status: "pending" | "complete" | "failed";
   payload?: Record<string, unknown>;
 }
 

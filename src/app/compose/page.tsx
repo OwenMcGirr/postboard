@@ -112,7 +112,7 @@ export default function ComposePage() {
     }
   }
 
-  if (status === "completed") {
+  if (status === "complete") {
     return (
       <div className="max-w-2xl">
         <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-8 text-center">
@@ -304,7 +304,7 @@ export default function ComposePage() {
               <XCircle className="w-4 h-4" /> {submitError}
             </p>
           )}
-          {jobId && status === "pending" && (
+          {jobId && (status === "pending" || !status) && (
             <p className="text-sm text-sky-400 flex items-center gap-1.5">
               <Loader className="w-4 h-4 animate-spin" /> Scheduling...
             </p>
