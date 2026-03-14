@@ -187,23 +187,44 @@ export default function ComposePage() {
 
           {/* Refinement */}
           {!streaming && stage === "compose" && (
-            <form onSubmit={handleRefine} className="flex gap-2">
-              <input
-                type="text"
-                value={refinement}
-                onChange={(e) => setRefinement(e.target.value)}
-                placeholder="Make it shorter, add a hook, more casual..."
-                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-sky-500 transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!refinement.trim()}
-                className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Refine
-              </button>
-            </form>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "Flesh it out",
+                  "Make it shorter",
+                  "Add a hook",
+                  "More casual",
+                  "More professional",
+                  "Add a CTA",
+                  "Remove emojis",
+                ].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => generate(q)}
+                    className="px-3 py-1.5 text-xs text-gray-300 bg-gray-800 hover:bg-gray-700 hover:text-white rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+              <form onSubmit={handleRefine} className="flex gap-2">
+                <input
+                  type="text"
+                  value={refinement}
+                  onChange={(e) => setRefinement(e.target.value)}
+                  placeholder="Custom instruction..."
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-sky-500 transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={!refinement.trim()}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Refine
+                </button>
+              </form>
+            </div>
           )}
 
           {/* Action buttons */}
