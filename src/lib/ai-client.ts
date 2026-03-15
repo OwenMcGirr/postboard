@@ -11,7 +11,8 @@ export const aiClient = new OpenAI({
   },
 });
 
-export const AI_MODEL = (import.meta.env.VITE_AI_MODEL as string) ?? "openai/gpt-4o";
+const baseModel = (import.meta.env.VITE_AI_MODEL as string) ?? "openai/gpt-4o";
+export const AI_MODEL = `${baseModel}:online`;
 
 function buildSystemPrompt(): string {
   const profile = getUserProfile().trim();
