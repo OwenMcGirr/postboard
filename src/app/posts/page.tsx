@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { RefreshCw, Calendar } from "lucide-react";
+import { RefreshCw, Calendar, Trash2 } from "lucide-react";
 import { usePosts } from "@/lib/hooks";
+import { usePublerClient } from "@/lib/use-publer-client";
 import { PublerPost } from "@/lib/publer-api";
 
 type StateFilter = "scheduled" | "published" | "draft";
@@ -17,16 +18,41 @@ const STATE_COLORS: Record<StateFilter, string> = {
   draft: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
 
-function PostCard({ post }: { post: PublerPost }) {
+function PostCard({ post, onDelete }: { post: PublerPost; onDelete: (id: string) => Promise<void> }) {
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function handleDelete() {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    setDeleting(true);
+    await onDelete(post.id);
+    setDeleting(false);
+  }
+
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-gray-300 leading-relaxed line-clamp-2">
           {post.text ?? "(no text)"}
         </p>
-        <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full border capitalize ${STATE_COLORS[post.state]}`}>
-          {post.state}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATE_COLORS[post.state]}`}>
+            {post.state}
+          </span>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            onBlur={() => setConfirmDelete(false)}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors disabled:opacity-40 ${
+              confirmDelete
+                ? "bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30"
+                : "text-gray-500 border-gray-700 hover:text-red-400 hover:border-red-500/40"
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {confirmDelete ? "Confirm" : "Delete"}
+          </button>
+        </div>
       </div>
       {post.scheduled_at && (
         <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
@@ -39,8 +65,14 @@ function PostCard({ post }: { post: PublerPost }) {
 }
 
 export default function PostsPage() {
+  const client = usePublerClient();
   const [filter, setFilter] = useState<StateFilter>("scheduled");
   const { posts, isLoading, isError, mutate } = usePosts({ state: filter });
+
+  async function handleDelete(id: string) {
+    await client.deletePosts([id]);
+    mutate();
+  }
 
   return (
     <div>
@@ -90,7 +122,7 @@ export default function PostsPage() {
       {!isLoading && !isError && (
         <div className="space-y-3">
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} onDelete={handleDelete} />
           ))}
         </div>
       )}

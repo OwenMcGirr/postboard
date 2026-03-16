@@ -90,6 +90,13 @@ export class PublerClient {
     );
   }
 
+  deletePosts(postIds: string[]) {
+    const query = postIds.map((id) => `post_ids[]=${encodeURIComponent(id)}`).join("&");
+    return this.request<{ deleted_ids: string[] }>(`/posts?${query}`, {
+      method: "DELETE",
+    });
+  }
+
   uploadMedia(formData: FormData) {
     return this.request<PublerMedia>("/media", {
       method: "POST",
