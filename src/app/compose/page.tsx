@@ -16,6 +16,7 @@ export default function ComposePage() {
   const [refinement, setRefinement] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [aiError, setAiError] = useState("");
 
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
@@ -27,9 +28,13 @@ export default function ComposePage() {
   const abortRef = useRef(false);
 
   function generate(userMessage: string, isRefinement = false) {
+    const previousPostText = postText;
     abortRef.current = false;
+    setAiError("");
     setStreaming(true);
-    setPostText("");
+    if (!isRefinement) {
+      setPostText("");
+    }
     setStage("compose");
 
     const content = isRefinement
@@ -51,8 +56,12 @@ export default function ComposePage() {
         setStreaming(false);
         setMessages((prev) => [...prev, { role: "assistant", content: buffer }]);
       },
-      () => {
+      (err) => {
         setStreaming(false);
+        setAiError(err.message || "AI generation failed.");
+        if (isRefinement) {
+          setPostText(previousPostText);
+        }
       }
     );
   }
@@ -82,6 +91,7 @@ export default function ComposePage() {
     setScheduledAt("");
     setJobId(null);
     setSubmitError("");
+    setAiError("");
     setStreaming(false);
   }
 
@@ -182,6 +192,13 @@ export default function ComposePage() {
       {/* Generated post */}
       {stage !== "brief" && (
         <div className="space-y-4">
+          {aiError && (
+            <p className="text-sm text-red-400 flex items-center gap-1.5">
+              <XCircle className="w-4 h-4 shrink-0" />
+              {aiError}
+            </p>
+          )}
+
           <div className="relative">
             <textarea
               value={postText}
