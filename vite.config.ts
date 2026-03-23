@@ -6,4 +6,9 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  server: {
+    proxy: {
+      "/api": "http://localhost:3001",
+    },
+  },
 });

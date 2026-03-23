@@ -14,8 +14,6 @@ import {
 
 export class PublerClient {
   constructor(
-    private readonly token: string,
-    private readonly workspaceId: string,
     private readonly baseUrl: string = PUBLER_BASE_URL
   ) {}
 
@@ -25,8 +23,6 @@ export class PublerClient {
   ): Promise<T> {
     const { skipContentType, ...fetchOptions } = options ?? {};
     const headers: Record<string, string> = {
-      Authorization: `Bearer-API ${this.token}`,
-      "Publer-Workspace-Id": this.workspaceId,
       ...(skipContentType ? {} : { "Content-Type": "application/json" }),
       ...(fetchOptions.headers as Record<string, string>),
     };
