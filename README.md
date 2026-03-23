@@ -2,17 +2,21 @@
 
 A private tool for composing and scheduling social media posts with AI. Built with React, Vite, and a small Node server that keeps Publer and OpenRouter credentials off the client.
 
-## What changed
+## Overview
 
-- The browser no longer talks directly to Publer or OpenRouter.
-- All third-party API calls now go through a local server under `/api`.
-- Secrets live only in server-side environment variables.
-- Optional HTTP Basic Auth can lock down the whole app.
-- Docker is configured to bind only to `127.0.0.1:3000` by default.
+- The browser does not talk directly to Publer or OpenRouter.
+- All third-party API calls go through the server under `/api`.
+- Secrets live in server-side environment variables.
+- The app can be protected with HTTP Basic Auth.
+- Docker binds to `127.0.0.1:3000` by default.
 
 ## Environment
 
 Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Description |
 |---|---|
@@ -22,7 +26,7 @@ Copy `.env.example` to `.env` and fill in your values:
 | `AI_MODEL` | Model to use for generation |
 | `APP_ORIGIN` | Public origin used in the OpenRouter referer header |
 | `BASIC_AUTH_USERNAME` | Username for HTTP Basic Auth |
-| `BASIC_AUTH_PASSWORD` | Password for HTTP Basic Auth. Leave unset to disable. |
+| `BASIC_AUTH_PASSWORD` | Password for HTTP Basic Auth |
 
 ## Local development
 
@@ -37,35 +41,85 @@ That starts:
 - Vite on `http://localhost:3000`
 - The private API server on `http://localhost:3001`
 
-The Vite dev server proxies `/api` to the local backend.
-
 ## Docker
 
-Build and run privately on the local machine:
+Run the app locally with Docker:
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
 ```
 
-The compose file binds the app to `127.0.0.1:3000`, so it is not exposed on your network by default.
+The app will be available on:
 
-Important:
+```text
+http://localhost:3000
+```
 
-- Use the server-side variable names from `.env.example`.
-- Do not keep using the old `VITE_*` names in `.env`.
-- Rotate any Publer or OpenRouter keys that were previously stored as `VITE_*` values.
+## Basic deploy
 
-## Private hosting
+For a simple private deployment:
 
-If you want remote access without making the app public:
+1. Create a small Ubuntu VPS.
+2. Install Docker and Docker Compose.
+3. Clone this repo onto the server.
+4. Create `.env` from `.env.example`.
+5. Start the app:
 
-- run the Docker container on a VPS or home server
-- keep the port bound to localhost
-- reach it over Tailscale, SSH tunneling, or another private network layer
+```bash
+docker compose up --build -d
+```
 
-## Scripts
+The container binds to `127.0.0.1:3000`, so it is not publicly exposed by default.
 
-- `npm run dev` starts the client and private API together
-- `npm run build` builds the frontend
-- `npm run start` serves the built frontend and API from one process
+## Tailscale access
+
+If you want browser access without buying a domain:
+
+1. Install Tailscale on the server.
+2. Install Tailscale on your own device.
+3. Log both into the same tailnet.
+4. On the server, proxy Tailscale traffic to the app:
+
+```bash
+tailscale serve --bg --http=80 http://127.0.0.1:3000
+```
+
+Then open the Tailscale URL for the server, for example:
+
+```text
+http://postboard.tailnet-name.ts.net/
+```
+
+## Operations
+
+Restart the app:
+
+```bash
+docker compose up -d
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+Check container status:
+
+```bash
+docker compose ps
+```
+
+## Troubleshooting
+
+- If `http://localhost:3000/healthz` returns `401`, Basic Auth is enabled and you need credentials.
+- If the app loads but AI or Publer calls fail, check `.env` for missing or wrong server-side variables.
+- If the Tailscale URL does not load, make sure your current device is connected to the same tailnet.
+
+## Security notes
+
+- Do not use old `VITE_*` env variable names.
+- Change the default Basic Auth password before real use.
+- Rotate any Publer or OpenRouter keys that were previously exposed in client-side env vars.
+- Do not keep using a pasted root password on a VPS. Move to SSH keys.
