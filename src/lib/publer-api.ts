@@ -1,5 +1,4 @@
-export const PUBLER_BASE_URL =
-  import.meta.env.VITE_PUBLER_API_BASE ?? "https://app.publer.com/api/v1";
+export const PUBLER_BASE_URL = "/api";
 
 export interface PublerUser {
   id: string;

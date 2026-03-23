@@ -3,13 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite --port 3000",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:client": "vite --port 3000",
+    "dev:server": "node server.js --dev",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "node server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "concurrently": "^9.2.1",
+    "express": "^5.2.1",
     "lucide-react": "^0.575.0",
+    "multer": "^2.1.1",
     "openai": "^6.29.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
