@@ -95,8 +95,8 @@ export default function ComposePage() {
     setStreaming(false);
   }
 
-  async function schedule() {
-    if (!postText.trim() || selectedAccounts.length === 0 || !scheduledAt) return;
+  async function scheduleAt(isoTimestamp: string) {
+    if (!postText.trim() || selectedAccounts.length === 0) return;
     setSubmitting(true);
     setSubmitError("");
     try {
@@ -116,7 +116,7 @@ export default function ComposePage() {
               networks,
               accounts: selectedAccounts.map((id) => ({
                 id,
-                scheduled_at: new Date(scheduledAt).toISOString(),
+                scheduled_at: isoTimestamp,
               })),
             },
           ],
@@ -128,6 +128,15 @@ export default function ComposePage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function schedule() {
+    if (!scheduledAt) return;
+    await scheduleAt(new Date(scheduledAt).toISOString());
+  }
+
+  async function postNow() {
+    await scheduleAt(new Date(Date.now() + 2 * 60 * 1000).toISOString());
   }
 
   if (status === "complete") {
@@ -343,6 +352,14 @@ export default function ComposePage() {
             >
               <Send className="w-4 h-4" />
               Confirm & schedule
+            </button>
+            <button
+              onClick={postNow}
+              disabled={!postText.trim() || selectedAccounts.length === 0 || submitting || !!jobId}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+            >
+              <Send className="w-4 h-4" />
+              Post now
             </button>
             <button
               onClick={() => setStage("compose")}
