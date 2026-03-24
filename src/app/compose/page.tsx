@@ -3,6 +3,7 @@ import { Sparkles, RefreshCw, Send, X, CheckCircle, XCircle, Loader } from "luci
 import { useAccounts, useJobStatus } from "@/lib/hooks";
 import { usePublerClient } from "@/lib/use-publer-client";
 import { streamPost, Message } from "@/lib/ai-client";
+import { getAiOnlinePreference, setAiOnlinePreference } from "@/lib/ai-online-preference";
 
 type Stage = "brief" | "compose" | "schedule" | "done";
 
@@ -17,6 +18,7 @@ export default function ComposePage() {
   const [streaming, setStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiError, setAiError] = useState("");
+  const [useOnline, setUseOnline] = useState(getAiOnlinePreference);
 
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
@@ -47,6 +49,7 @@ export default function ComposePage() {
     let buffer = "";
     streamPost(
       newMessages,
+      useOnline,
       (chunk) => {
         if (abortRef.current) return;
         buffer += chunk;
@@ -139,6 +142,12 @@ export default function ComposePage() {
     await scheduleAt(new Date(Date.now() + 2 * 60 * 1000).toISOString());
   }
 
+  function handleOnlineToggle(e: React.ChangeEvent<HTMLInputElement>) {
+    const nextValue = e.target.checked;
+    setUseOnline(nextValue);
+    setAiOnlinePreference(nextValue);
+  }
+
   if (status === "complete") {
     return (
       <div className="max-w-2xl">
@@ -174,6 +183,21 @@ export default function ComposePage() {
           </button>
         )}
       </div>
+
+      {stage !== "done" && (
+        <label className="flex items-start gap-3 rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={useOnline}
+            onChange={handleOnlineToggle}
+            className="mt-0.5 rounded border-gray-600 bg-gray-800 text-sky-500 focus:ring-sky-500"
+          />
+          <div>
+            <p className="text-sm font-medium text-white">Use web access</p>
+            <p className="text-xs text-gray-400">Uses the online model variant for fresher context.</p>
+          </div>
+        </label>
+      )}
 
       {/* Brief input */}
       {stage === "brief" && (

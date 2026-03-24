@@ -7,6 +7,7 @@ export interface Message {
 
 export async function streamPost(
   messages: Message[],
+  useOnline: boolean,
   onChunk: (chunk: string) => void,
   onDone: () => void,
   onError: (err: Error) => void
@@ -20,6 +21,7 @@ export async function streamPost(
       body: JSON.stringify({
         messages,
         profile: getUserProfile(),
+        useOnline,
       }),
     });
 

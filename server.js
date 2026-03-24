@@ -8,7 +8,7 @@ const upload = multer();
 const isDev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || (isDev ? 3001 : 3000));
 const publerBaseUrl = process.env.PUBLER_API_BASE || "https://app.publer.com/api/v1";
-const aiModel = process.env.AI_MODEL || "openai/gpt-4o:online";
+const configuredAiModel = process.env.AI_MODEL || "openai/gpt-4o:online";
 
 const openRouterKey = process.env.OPENROUTER_API_KEY || "";
 const publerToken = process.env.PUBLER_TOKEN || "";
@@ -57,6 +57,13 @@ Rules:
 
 If the user gives a refinement instruction, rewrite the post accordingly.
 Output ONLY the post text. No preamble, no labels, no quotes.${profileSection}`;
+}
+
+function resolveAiModel(useOnline) {
+  const baseModel = configuredAiModel.endsWith(":online")
+    ? configuredAiModel.slice(0, -7)
+    : configuredAiModel;
+  return useOnline ? `${baseModel}:online` : baseModel;
 }
 
 function basicAuth(req, res, next) {
@@ -257,12 +264,13 @@ app.post("/api/ai/compose", async (req, res) => {
 
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
     const profile = typeof req.body?.profile === "string" ? req.body.profile : "";
+    const useOnline = typeof req.body?.useOnline === "boolean" ? req.body.useOnline : true;
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");
 
     const stream = await aiClient.chat.completions.create({
-      model: aiModel,
+      model: resolveAiModel(useOnline),
       messages: [{ role: "system", content: buildSystemPrompt(profile) }, ...messages],
       stream: true,
     });
