@@ -23,7 +23,7 @@ cp .env.example .env
 | `PUBLER_TOKEN` | Your Publer API token |
 | `PUBLER_WORKSPACE_ID` | Your Publer workspace ID |
 | `OPENROUTER_API_KEY` | Your OpenRouter API key |
-| `AI_MODEL` | Model to use for generation |
+| `AI_MODEL` | Model to use for generation. `anthropic/claude-sonnet-4.6` is a good default for stronger voice |
 | `APP_ORIGIN` | Public origin used in the OpenRouter referer header |
 | `BASIC_AUTH_USERNAME` | Username for HTTP Basic Auth |
 | `BASIC_AUTH_PASSWORD` | Password for HTTP Basic Auth |
