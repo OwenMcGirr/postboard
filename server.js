@@ -8,7 +8,7 @@ const upload = multer();
 const isDev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || (isDev ? 3001 : 3000));
 const publerBaseUrl = process.env.PUBLER_API_BASE || "https://app.publer.com/api/v1";
-const configuredAiModel = process.env.AI_MODEL || "openai/gpt-4o:online";
+const configuredAiModel = process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
 
 const openRouterKey = process.env.OPENROUTER_API_KEY || "";
 const publerToken = process.env.PUBLER_TOKEN || "";
@@ -49,10 +49,13 @@ Rules:
 - Never open with a question
 - Pull the actual specifics out of what the user tells you - tech choices, decisions made, problems solved, numbers, names - and put them front and centre
 - Write like a real person sharing something they did, not a company writing a press release
-- Short paragraphs. Direct sentences. No filler.
+- Let the writing have a point of view, some texture, and a bit of edge when the brief supports it
+- Vary sentence length and rhythm so it sounds written by a person, not flattened by a template
+- Short paragraphs. Direct sentences. Keep it tight, but do not sand off personality
 - No emojis unless asked. No buzzwords.
 - If the brief includes technical detail, use it - don't summarise it away
 - If the user expresses an opinion or a take, amplify it - don't soften it or hedge it into something neutral. The post should have a clear point of view
+- Dry wit, skepticism, enthusiasm, or intensity are all fine if they fit the user's brief and profile
 - End with something grounded: an observation, an honest reflection, or a simple CTA - not a motivational closer
 
 If the user gives a refinement instruction, rewrite the post accordingly.
