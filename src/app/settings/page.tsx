@@ -6,6 +6,7 @@ import {
   answerInterview,
   completeInterview,
   importLegacyProfile,
+  populateMemoryFromResearch,
   previewResearch,
   saveResearch,
   startInterview,
@@ -227,7 +228,7 @@ function MemorySettingsPage() {
         <div>
           <p className="text-sm font-medium text-white">Research me online</p>
           <p className="text-xs text-gray-400 mt-1">
-            This runs a one-off Codex web search and lets you save only the findings you want in memory.
+            Use this to skip the interview and seed memory from public facts, or preview findings before saving them manually.
           </p>
         </div>
         <div className="flex gap-3">
@@ -251,6 +252,32 @@ function MemorySettingsPage() {
             {busyAction === "preview-research" ? <Loader className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Research
           </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() =>
+              runAction("populate-memory-from-research", async () => {
+                const result = await populateMemoryFromResearch(researchTarget.trim());
+                setResearchPreviewResults(result.findings);
+                setSummaryDraft(result.summary.canonicalSummary);
+                setSaved(
+                  `Memory populated from web research with ${result.saved} finding${result.saved === 1 ? "" : "s"} and ${result.factCount} fact${result.factCount === 1 ? "" : "s"}.`
+                );
+              })
+            }
+            disabled={!researchTarget.trim() || busyAction === "populate-memory-from-research"}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {busyAction === "populate-memory-from-research" ? (
+              <Loader className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Research and populate memory
+          </button>
+          <p className="text-xs text-gray-500">
+            This replaces the canonical profile and structured facts with a search-derived first draft.
+          </p>
         </div>
 
         {researchPreviewResults.length > 0 && (

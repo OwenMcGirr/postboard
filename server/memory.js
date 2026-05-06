@@ -224,6 +224,50 @@ Rules:
   return z.object({ findings: z.array(ResearchFindingSchema).default([]) }).parse(parsed).findings;
 }
 
+async function deriveResearchMemory(target, findings) {
+  const sourceBlock = findings
+    .map(
+      (finding, index) =>
+        `${index + 1}. ${finding.title}\nSummary: ${finding.summary}\nSource: ${finding.sourceUrl}\nConfidence: ${finding.confidence}`
+    )
+    .join("\n\n");
+
+  const prompt = `You are creating an initial author-memory profile for a social media drafting app.
+
+Target:
+${target}
+
+Use only the factual findings below. Do not invent personal traits, opinions, or style preferences unless they are supported by the findings.
+
+Return JSON only with this shape:
+{
+  "displayName": "string",
+  "canonicalSummary": "string",
+  "facts": [
+    { "category": "identity|build|audience|channels|topics|opinions|tone|avoid|examples", "content": "string", "priority": 1-10 }
+  ]
+}
+
+Rules:
+- canonicalSummary should be useful immediately as a writing-memory seed
+- stay cautious and factual when the source material is thin
+- omit unsupported categories instead of guessing
+- no markdown code fences
+- no commentary before or after the JSON
+
+Findings:
+${sourceBlock}`;
+
+  const result = await runCodex({
+    prompt,
+    model: process.env.CODEX_MODEL,
+    allowSearch: false,
+    timeoutMs: Number(process.env.CODEX_TIMEOUT_MS || 60000),
+  });
+
+  return InterviewSummarySchema.parse(JSON.parse(stripCodeFence(result.text)));
+}
+
 async function getSettingsState() {
   const client = requireConvex();
   return await client.query(anyApi.memory.getSettingsState, {});
@@ -332,6 +376,33 @@ async function saveResearch({ target, findings }) {
   });
 }
 
+async function populateMemoryFromResearch(target) {
+  const client = requireConvex();
+  const findings = await runResearchPreview(target);
+  if (findings.length === 0) {
+    const error = new Error("Codex search did not return any usable findings for that target.");
+    error.status = 502;
+    throw error;
+  }
+
+  const summary = await deriveResearchMemory(target, findings);
+
+  const result = await client.mutation(anyApi.memory.populateMemoryFromResearch, {
+    target,
+    displayName: summary.displayName,
+    canonicalSummary: summary.canonicalSummary,
+    facts: summary.facts,
+    findings,
+    now: now(),
+  });
+
+  return {
+    ...result,
+    findings,
+    summary,
+  };
+}
+
 async function getComposeContext(brief) {
   const url = getConvexUrl();
   if (!url) {
@@ -359,6 +430,7 @@ module.exports = {
   getProfile,
   getSettingsState,
   importLegacyProfile,
+  populateMemoryFromResearch,
   previewResearch,
   saveResearch,
   saveWritingExample,

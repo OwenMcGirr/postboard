@@ -11,6 +11,7 @@ const {
   getProfile,
   getSettingsState,
   importLegacyProfile,
+  populateMemoryFromResearch,
   previewResearch,
   saveResearch,
   saveWritingExample,
@@ -230,6 +231,21 @@ app.post("/api/memory/research", async (req, res) => {
     }
 
     res.json(await saveResearch({ target, findings }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/research_bootstrap", async (req, res) => {
+  try {
+    const target = typeof req.body?.target === "string" ? req.body.target.trim() : "";
+
+    if (!target) {
+      res.status(400).json({ message: "target is required." });
+      return;
+    }
+
+    res.json(await populateMemoryFromResearch(target));
   } catch (err) {
     sendError(res, err);
   }
