@@ -1,18 +1,28 @@
 # Postboard
 
-A private tool for composing and scheduling social media posts with AI. Built with React, Vite, and a small Node server that keeps Publer and OpenRouter credentials off the client.
+Private social post drafting and scheduling with Publer, Codex CLI inference, and Convex-backed author memory.
 
-## Overview
+## Stack
 
-- The browser does not talk directly to Publer or OpenRouter.
-- All third-party API calls go through the server under `/api`.
-- Secrets live in server-side environment variables.
-- The app can be protected with HTTP Basic Auth.
-- Docker binds to `127.0.0.1:3000` by default.
+- React + Vite frontend
+- Express server for Publer access, compose orchestration, and static hosting
+- Convex for single-profile memory storage
+- Codex CLI for drafting, interview summarization, and one-off research
+
+## What changed
+
+- The browser no longer depends on a local freeform profile string.
+- `/api/ai/compose` now loads memory from Convex and runs `codex exec` on the server.
+- Settings now provides:
+  - a fixed onboarding interview
+  - editable canonical profile memory
+  - one-off web research with explicit save
+  - saved writing examples
+- Docker now persists `CODEX_HOME` so Codex login survives container rebuilds.
 
 ## Environment
 
-Copy `.env.example` to `.env` and fill in your values:
+Copy `.env.example` to `.env` and fill in the values:
 
 ```bash
 cp .env.example .env
@@ -20,15 +30,36 @@ cp .env.example .env
 
 | Variable | Description |
 |---|---|
-| `PUBLER_TOKEN` | Your Publer API token |
-| `PUBLER_WORKSPACE_ID` | Your Publer workspace ID |
-| `OPENROUTER_API_KEY` | Your OpenRouter API key |
-| `AI_MODEL` | Model to use for generation. `anthropic/claude-sonnet-4.6` is a good default for stronger voice |
-| `APP_ORIGIN` | Public origin used in the OpenRouter referer header |
-| `BASIC_AUTH_USERNAME` | Username for HTTP Basic Auth |
-| `BASIC_AUTH_PASSWORD` | Password for HTTP Basic Auth |
+| `PUBLER_TOKEN` | Publer API token |
+| `PUBLER_WORKSPACE_ID` | Publer workspace ID |
+| `CONVEX_URL` | Convex deployment URL used by the Express server |
+| `VITE_CONVEX_URL` | Convex deployment URL exposed to the client |
+| `CODEX_MODEL` | Optional Codex model override. Leave blank to use the CLI default for your login type |
+| `CODEX_TIMEOUT_MS` | Compose timeout in milliseconds |
+| `BASIC_AUTH_USERNAME` | Username for optional site-level Basic Auth |
+| `BASIC_AUTH_PASSWORD` | Password for optional site-level Basic Auth. Leave blank to disable Basic Auth |
+
+## Convex setup
+
+This repo uses a hosted Convex deployment for memory. Create or select a deployment, then set both:
+
+```bash
+CONVEX_URL=https://your-deployment.convex.cloud
+VITE_CONVEX_URL=https://your-deployment.convex.cloud
+```
+
+Useful commands:
+
+```bash
+npm run dev:memory
+npm run convex:deploy
+```
+
+The app uses runtime API references instead of generated client code, so you do not need Convex codegen just to run the UI.
 
 ## Local development
+
+Install dependencies and start the app:
 
 ```bash
 npm install
@@ -39,87 +70,128 @@ npm run dev
 That starts:
 
 - Vite on `http://localhost:3000`
-- The private API server on `http://localhost:3001`
+- Express on `http://localhost:3001`
+
+If you want memory enabled locally, run Convex in another shell:
+
+```bash
+npm run dev:memory
+```
+
+Without Convex configured, compose still works, but memory and settings-based interview features stay disabled.
+
+## Codex CLI auth
+
+Postboard expects Codex CLI auth to exist wherever the Express server runs.
+
+Local machine:
+
+```bash
+npx codex login --device-auth
+npx codex login status
+```
+
+Server or container:
+
+```bash
+docker compose exec postboard npx codex login --device-auth
+docker compose exec postboard npx codex login status
+```
+
+Important notes:
+
+- `CODEX_HOME` is mounted to `/codex-home` in `docker-compose.yml`
+- that volume preserves the ChatGPT device login across redeploys
+- if you set `CODEX_MODEL`, it must be compatible with the auth type in that environment
+
+## Memory flow
+
+Settings now drives memory in four parts:
+
+1. Start the interview and answer the fixed sequence of questions.
+2. Let Codex summarize that transcript into a canonical writing profile plus structured facts.
+3. Optionally run `Research me online`, review the findings, and save only the ones you want.
+4. Save approved drafts from Compose as writing examples.
+
+Compose retrieval is deterministic:
+
+- canonical profile is always included
+- high-priority facts are included
+- latest writing examples are included
+- saved research notes are included only when they match the current brief
 
 ## Docker
 
-Run the app locally with Docker:
+Run locally:
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
 ```
 
-The app will be available on:
+The app binds to:
 
 ```text
 http://localhost:3000
 ```
 
-## Basic deploy
+## Deploy
 
-For a simple private deployment:
-
-1. Create a small Ubuntu VPS.
-2. Install Docker and Docker Compose.
-3. Clone this repo onto the server.
-4. Create `.env` from `.env.example`.
-5. Start the app:
+1. Provision a server with Docker and Docker Compose.
+2. Clone this repo and create `.env`.
+3. Set Publer and Convex environment values.
+4. Start the app:
 
 ```bash
 docker compose up --build -d
 ```
 
-The container binds to `127.0.0.1:3000`, so it is not publicly exposed by default.
-
-## Tailscale access
-
-If you want browser access without buying a domain:
-
-1. Install Tailscale on the server.
-2. Install Tailscale on your own device.
-3. Log both into the same tailnet.
-4. On the server, proxy Tailscale traffic to the app:
+5. Authenticate Codex inside the running container:
 
 ```bash
-tailscale serve --bg --http=80 http://127.0.0.1:3000
+docker compose exec postboard npx codex login --device-auth
+docker compose exec postboard npx codex login status
 ```
 
-Then open the Tailscale URL for the server, for example:
-
-```text
-http://postboard.tailnet-name.ts.net/
-```
+6. Complete the onboarding interview from Settings.
 
 ## Operations
 
-Restart the app:
+Restart:
 
 ```bash
 docker compose up -d
 ```
 
-View logs:
+Logs:
 
 ```bash
 docker compose logs -f
 ```
 
-Check container status:
+Container status:
 
 ```bash
 docker compose ps
 ```
 
+Health check:
+
+```bash
+curl http://127.0.0.1:3000/healthz
+```
+
 ## Troubleshooting
 
-- If `http://localhost:3000/healthz` returns `401`, Basic Auth is enabled and you need credentials.
-- If the app loads but AI or Publer calls fail, check `.env` for missing or wrong server-side variables.
-- If the Tailscale URL does not load, make sure your current device is connected to the same tailnet.
+- If compose fails with a Codex error, verify `npx codex login status` in the same runtime where Express runs.
+- If compose fails only after setting `CODEX_MODEL`, remove it first and retry with the CLI default.
+- If Settings says memory is not configured, check both `CONVEX_URL` and `VITE_CONVEX_URL`.
+- If the app loads but Publer calls fail, re-check `PUBLER_TOKEN` and `PUBLER_WORKSPACE_ID`.
+- If `/healthz` returns `401`, Basic Auth is enabled.
 
 ## Security notes
 
-- Do not use old `VITE_*` env variable names.
-- Change the default Basic Auth password before real use.
-- Rotate any Publer or OpenRouter keys that were previously exposed in client-side env vars.
-- Do not keep using a pasted root password on a VPS. Move to SSH keys.
+- Publer credentials stay server-side.
+- Convex memory is single-profile for the whole deployment.
+- Web research is manual only and never runs automatically during compose.
+- Move server access to SSH keys instead of relying on passwords.

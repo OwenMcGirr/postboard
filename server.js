@@ -1,32 +1,34 @@
 const express = require("express");
 const multer = require("multer");
-const OpenAI = require("openai");
 const path = require("path");
+const { runCodex } = require("./server/codex");
+const {
+  answerInterview,
+  buildComposePrompt,
+  completeInterview,
+  getComposeContext,
+  getExamples,
+  getProfile,
+  getSettingsState,
+  importLegacyProfile,
+  previewResearch,
+  saveResearch,
+  saveWritingExample,
+  startInterview,
+  updateCanonicalSummary,
+} = require("./server/memory");
 
 const app = express();
 const upload = multer();
 const isDev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || (isDev ? 3001 : 3000));
 const publerBaseUrl = process.env.PUBLER_API_BASE || "https://app.publer.com/api/v1";
-const configuredAiModel = process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
 
-const openRouterKey = process.env.OPENROUTER_API_KEY || "";
 const publerToken = process.env.PUBLER_TOKEN || "";
 const publerWorkspaceId = process.env.PUBLER_WORKSPACE_ID || "";
 
 const basicAuthUser = process.env.BASIC_AUTH_USERNAME || "postboard";
 const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD || "";
-
-const aiClient = openRouterKey
-  ? new OpenAI({
-      apiKey: openRouterKey,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: {
-        "HTTP-Referer": process.env.APP_ORIGIN || `http://localhost:${port}`,
-        "X-Title": "Postboard",
-      },
-    })
-  : null;
 
 function requireEnv(name, value) {
   if (!value) {
@@ -34,41 +36,6 @@ function requireEnv(name, value) {
     err.status = 500;
     throw err;
   }
-}
-
-function buildSystemPrompt(profile = "") {
-  const trimmedProfile = String(profile).trim();
-  const profileSection = trimmedProfile ? `\n\nAbout the author:\n${trimmedProfile}` : "";
-  return `You write social media posts on behalf of the user. Your only job is to produce post text - never answer questions, explain things, or have a conversation.
-
-Every response must be a complete, ready-to-post social media post written in the user's voice.
-
-Rules:
-- Lead with the most specific, concrete detail from the brief - not a generic setup sentence
-- Never open with "I'm excited to", "I'm thrilled to", "Proud to announce", "Just launched", or any announcement cliche
-- Never open with a question
-- Never ask the user follow-up questions, request clarification, or say you need more information
-- Pull the actual specifics out of what the user tells you - tech choices, decisions made, problems solved, numbers, names - and put them front and centre
-- Write like a real person sharing something they did, not a company writing a press release
-- Let the writing have a point of view, some texture, and a bit of edge when the brief supports it
-- Vary sentence length and rhythm so it sounds written by a person, not flattened by a template
-- Short paragraphs. Direct sentences. Keep it tight, but do not sand off personality
-- No emojis unless asked. No buzzwords.
-- If the brief includes technical detail, use it - don't summarise it away
-- If the brief is sparse or ambiguous, make reasonable assumptions and still produce a full draft
-- If the user expresses an opinion or a take, amplify it - don't soften it or hedge it into something neutral. The post should have a clear point of view
-- Dry wit, skepticism, enthusiasm, or intensity are all fine if they fit the user's brief and profile
-- End with something grounded: an observation, an honest reflection, or a simple CTA - not a motivational closer
-
-If the user gives a refinement instruction, rewrite the full post accordingly instead of commenting on the draft.
-Output ONLY the post text. No preamble, no labels, no quotes.${profileSection}`;
-}
-
-function resolveAiModel(useOnline) {
-  const baseModel = configuredAiModel.endsWith(":online")
-    ? configuredAiModel.slice(0, -7)
-    : configuredAiModel;
-  return useOnline ? `${baseModel}:online` : baseModel;
 }
 
 function basicAuth(req, res, next) {
@@ -155,6 +122,136 @@ app.get("/healthz", (_req, res) => {
 });
 
 app.use("/api", express.json({ limit: "1mb" }));
+
+app.get("/api/memory/profile", async (_req, res) => {
+  try {
+    res.json(await getProfile());
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.get("/api/memory/examples", async (_req, res) => {
+  try {
+    res.json(await getExamples());
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.get("/api/memory/settings_state", async (_req, res) => {
+  try {
+    res.json(await getSettingsState());
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/profile", async (req, res) => {
+  try {
+    const canonicalSummary =
+      typeof req.body?.canonicalSummary === "string" ? req.body.canonicalSummary : "";
+    const displayName =
+      typeof req.body?.displayName === "string" ? req.body.displayName : undefined;
+    res.json(await updateCanonicalSummary({ canonicalSummary, displayName }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/import_local_profile", async (req, res) => {
+  try {
+    const profile = typeof req.body?.profile === "string" ? req.body.profile : "";
+    res.json(await importLegacyProfile(profile));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/interview/start", async (_req, res) => {
+  try {
+    res.json(await startInterview());
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/interview/message", async (req, res) => {
+  try {
+    const sessionId = req.body?.sessionId;
+    const questionId = typeof req.body?.questionId === "string" ? req.body.questionId : "";
+    const answer = typeof req.body?.answer === "string" ? req.body.answer : "";
+
+    if (!sessionId || !questionId || !answer.trim()) {
+      res.status(400).json({ message: "sessionId, questionId, and answer are required." });
+      return;
+    }
+
+    res.json(
+      await answerInterview({
+        sessionId,
+        questionId,
+        answer: answer.trim(),
+      })
+    );
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/interview/complete", async (req, res) => {
+  try {
+    const sessionId = req.body?.sessionId;
+    if (!sessionId) {
+      res.status(400).json({ message: "sessionId is required." });
+      return;
+    }
+
+    res.json(await completeInterview({ sessionId }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/research", async (req, res) => {
+  try {
+    const target = typeof req.body?.target === "string" ? req.body.target.trim() : "";
+    const persist = req.body?.persist === true;
+    const findings = Array.isArray(req.body?.findings) ? req.body.findings : [];
+
+    if (!target) {
+      res.status(400).json({ message: "target is required." });
+      return;
+    }
+
+    if (!persist) {
+      res.json({ findings: await previewResearch(target) });
+      return;
+    }
+
+    res.json(await saveResearch({ target, findings }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.post("/api/memory/examples", async (req, res) => {
+  try {
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    const label = typeof req.body?.label === "string" ? req.body.label.trim() : "Approved example";
+    const sourceBrief =
+      typeof req.body?.sourceBrief === "string" ? req.body.sourceBrief.trim() : undefined;
+
+    if (!text) {
+      res.status(400).json({ message: "text is required." });
+      return;
+    }
+
+    res.json(await saveWritingExample({ text, label, sourceBrief }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
 
 app.get("/api/me", async (_req, res) => {
   try {
@@ -262,31 +359,23 @@ app.post("/api/media", upload.single("file"), async (req, res) => {
 
 app.post("/api/ai/compose", async (req, res) => {
   try {
-    requireEnv("OPENROUTER_API_KEY", openRouterKey);
-    if (!aiClient) {
-      throw new Error("AI client is not configured.");
-    }
-
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-    const profile = typeof req.body?.profile === "string" ? req.body.profile : "";
-    const useOnline = typeof req.body?.useOnline === "boolean" ? req.body.useOnline : true;
+    const latestUserMessage = [...messages]
+      .reverse()
+      .find((message) => message && message.role === "user" && typeof message.content === "string");
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");
 
-    const stream = await aiClient.chat.completions.create({
-      model: resolveAiModel(useOnline),
-      messages: [{ role: "system", content: buildSystemPrompt(profile) }, ...messages],
-      stream: true,
+    const memory = await getComposeContext(latestUserMessage?.content || "");
+    const prompt = buildComposePrompt(messages, memory);
+    const result = await runCodex({
+      prompt,
+      model: process.env.CODEX_MODEL,
+      allowSearch: false,
+      timeoutMs: Number(process.env.CODEX_TIMEOUT_MS || 60000),
     });
-
-    for await (const chunk of stream) {
-      const text = chunk.choices?.[0]?.delta?.content || "";
-      if (text) {
-        res.write(text);
-      }
-    }
-
+    res.write(result.text);
     res.end();
   } catch (err) {
     if (!res.headersSent) {
