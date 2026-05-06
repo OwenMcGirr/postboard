@@ -70,6 +70,18 @@ export function saveResearch(target: string, findings: ResearchFinding[]) {
   });
 }
 
+export function populateMemoryFromResearch(target: string) {
+  return request<{
+    saved: number;
+    factCount: number;
+    findings: ResearchFinding[];
+    summary: InterviewSummary;
+  }>("/api/memory/research_bootstrap", {
+    method: "POST",
+    body: JSON.stringify({ target }),
+  });
+}
+
 export function saveWritingExample(text: string, label: string, sourceBrief?: string) {
   return request<{ id: string }>("/api/memory/examples", {
     method: "POST",

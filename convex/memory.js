@@ -55,6 +55,22 @@ async function getSessionMessages(ctx, sessionId) {
     .collect();
 }
 
+async function replaceMemoryFacts(ctx, facts, now) {
+  const existingFacts = await ctx.db.query("memoryFacts").collect();
+  for (const fact of existingFacts) {
+    await ctx.db.delete(fact._id);
+  }
+
+  for (const fact of facts) {
+    await ctx.db.insert("memoryFacts", {
+      category: fact.category,
+      content: fact.content,
+      priority: fact.priority,
+      updatedAt: now,
+    });
+  }
+}
+
 export const getProfile = queryGeneric({
   args: {},
   handler: async (ctx) => {
@@ -272,19 +288,7 @@ export const completeInterviewSession = mutationGeneric({
     now: v.float64(),
   },
   handler: async (ctx, args) => {
-    const existingFacts = await ctx.db.query("memoryFacts").collect();
-    for (const fact of existingFacts) {
-      await ctx.db.delete(fact._id);
-    }
-
-    for (const fact of args.facts) {
-      await ctx.db.insert("memoryFacts", {
-        category: fact.category,
-        content: fact.content,
-        priority: fact.priority,
-        updatedAt: args.now,
-      });
-    }
+    await replaceMemoryFacts(ctx, args.facts, args.now);
 
     const profile = await getProfileDoc(ctx);
     if (profile) {
@@ -316,6 +320,92 @@ export const completeInterviewSession = mutationGeneric({
     });
 
     return { ok: true };
+  },
+});
+
+export const populateMemoryFromResearch = mutationGeneric({
+  args: {
+    target: v.string(),
+    displayName: v.string(),
+    canonicalSummary: v.string(),
+    facts: v.array(
+      v.object({
+        category: v.string(),
+        content: v.string(),
+        priority: v.float64(),
+      })
+    ),
+    findings: v.array(
+      v.object({
+        title: v.string(),
+        summary: v.string(),
+        sourceUrl: v.string(),
+        confidence: v.float64(),
+        keywords: v.array(v.string()),
+      })
+    ),
+    now: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    await replaceMemoryFacts(ctx, args.facts, args.now);
+
+    const activeSessions = await ctx.db
+      .query("interviewSessions")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+
+    for (const session of activeSessions) {
+      await ctx.db.patch(session._id, {
+        status: "abandoned",
+        currentQuestionId: null,
+        updatedAt: args.now,
+      });
+    }
+
+    const existingSources = await ctx.db.query("memorySources").collect();
+    for (const source of existingSources) {
+      if (source.kind === "research") {
+        await ctx.db.delete(source._id);
+      }
+    }
+
+    for (const finding of args.findings) {
+      await ctx.db.insert("memorySources", {
+        kind: "research",
+        target: args.target,
+        title: finding.title,
+        summary: finding.summary,
+        sourceUrl: finding.sourceUrl,
+        confidence: finding.confidence,
+        keywords: finding.keywords,
+        createdAt: args.now,
+      });
+    }
+
+    const profile = await getProfileDoc(ctx);
+    if (profile) {
+      await ctx.db.patch(profile._id, {
+        displayName: args.displayName,
+        status: "ready",
+        canonicalSummary: args.canonicalSummary,
+        importedFromLocal: false,
+        updatedAt: args.now,
+      });
+    } else {
+      await ctx.db.insert("authorProfiles", {
+        singletonKey: PROFILE_KEY,
+        displayName: args.displayName,
+        status: "ready",
+        canonicalSummary: args.canonicalSummary,
+        importedFromLocal: false,
+        updatedAt: args.now,
+      });
+    }
+
+    return {
+      saved: args.findings.length,
+      factCount: args.facts.length,
+    };
   },
 });
 
