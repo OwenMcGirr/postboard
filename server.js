@@ -346,12 +346,18 @@ app.get("/api/posts", async (req, res) => {
       return;
     }
 
-    const filteredPosts = payload.posts.filter((post) =>
-      Array.isArray(post?.accounts) &&
-      post.accounts.some(
-        (account) => account && typeof account.id === "string" && accountIds.includes(account.id)
-      )
-    );
+    const filteredPosts = payload.posts.filter((post) => {
+      if (typeof post?.account_id === "string" && accountIds.includes(post.account_id)) {
+        return true;
+      }
+
+      return (
+        Array.isArray(post?.accounts) &&
+        post.accounts.some(
+          (account) => account && typeof account.id === "string" && accountIds.includes(account.id)
+        )
+      );
+    });
 
     res.json({
       ...payload,
