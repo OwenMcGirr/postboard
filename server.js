@@ -337,9 +337,6 @@ app.get("/api/posts", async (req, res) => {
             .map((value) => value.trim())
             .filter(Boolean)
         : [];
-    if (accountIds.length > 0) {
-      query.set("account_ids", accountIds.join(","));
-    }
     const qs = query.toString();
     const response = await publerRequest(`/posts${qs ? `?${qs}` : ""}`);
     const payload = await response.json();
