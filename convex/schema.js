@@ -57,7 +57,14 @@ export default defineSchema({
   writingExamples: defineTable({
     text: v.string(),
     label: v.string(),
+    sourceType: v.string(),
+    sourcePostId: v.optional(v.string()),
+    sourceAccountIds: v.optional(v.array(v.string())),
+    sourceAccountNames: v.optional(v.array(v.string())),
+    publishedAt: v.optional(v.string()),
     sourceBrief: v.optional(v.string()),
     createdAt: v.float64(),
-  }).index("by_createdAt", ["createdAt"]),
+  })
+    .index("by_createdAt", ["createdAt"])
+    .index("by_sourcePostId", ["sourcePostId"]),
 });

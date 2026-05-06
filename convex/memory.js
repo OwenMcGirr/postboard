@@ -71,6 +71,14 @@ async function replaceMemoryFacts(ctx, facts, now) {
   }
 }
 
+function normalizeExampleText(text) {
+  return String(text || "").trim();
+}
+
+async function getExistingWritingExamples(ctx) {
+  return await ctx.db.query("writingExamples").collect();
+}
+
 export const getProfile = queryGeneric({
   args: {},
   handler: async (ctx) => {
@@ -183,6 +191,11 @@ export const getComposeContext = queryGeneric({
         _id: example._id,
         text: example.text,
         label: example.label,
+        sourceType: example.sourceType,
+        sourcePostId: example.sourcePostId ?? "",
+        sourceAccountIds: example.sourceAccountIds ?? [],
+        sourceAccountNames: example.sourceAccountNames ?? [],
+        publishedAt: example.publishedAt ?? "",
         sourceBrief: example.sourceBrief ?? "",
         createdAt: example.createdAt,
       })),
@@ -521,10 +534,79 @@ export const saveWritingExample = mutationGeneric({
     const id = await ctx.db.insert("writingExamples", {
       text: args.text,
       label: args.label,
+      sourceType: "manual_draft",
       sourceBrief: args.sourceBrief,
       createdAt: args.now,
     });
 
     return { id };
+  },
+});
+
+export const importWritingExamplesFromPosts = mutationGeneric({
+  args: {
+    posts: v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        accountIds: v.array(v.string()),
+        accountNames: v.array(v.string()),
+        publishedAt: v.optional(v.string()),
+      })
+    ),
+    now: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    const existingExamples = await getExistingWritingExamples(ctx);
+    const existingSourcePostIds = new Set(
+      existingExamples
+        .map((example) => example.sourcePostId)
+        .filter((value) => typeof value === "string" && value.trim())
+    );
+    const existingTexts = new Set(
+      existingExamples
+        .map((example) => normalizeExampleText(example.text))
+        .filter(Boolean)
+    );
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const post of args.posts) {
+      const normalizedText = normalizeExampleText(post.text);
+      const sourcePostId = String(post.id || "").trim();
+
+      if (!normalizedText || normalizedText.length < 20) {
+        skipped += 1;
+        continue;
+      }
+
+      if ((sourcePostId && existingSourcePostIds.has(sourcePostId)) || existingTexts.has(normalizedText)) {
+        skipped += 1;
+        continue;
+      }
+
+      await ctx.db.insert("writingExamples", {
+        text: normalizedText,
+        label: "Imported from past posts",
+        sourceType: "imported_post",
+        sourcePostId,
+        sourceAccountIds: post.accountIds,
+        sourceAccountNames: post.accountNames,
+        publishedAt: post.publishedAt,
+        createdAt: args.now,
+      });
+
+      imported += 1;
+      if (sourcePostId) {
+        existingSourcePostIds.add(sourcePostId);
+      }
+      existingTexts.add(normalizedText);
+    }
+
+    return {
+      imported,
+      skipped,
+    };
   },
 });
