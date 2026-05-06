@@ -1,5 +1,3 @@
-import { getUserProfile } from "./user-profile";
-
 export interface Message {
   role: "user" | "assistant";
   content: string;
@@ -7,7 +5,6 @@ export interface Message {
 
 export async function streamPost(
   messages: Message[],
-  useOnline: boolean,
   onChunk: (chunk: string) => void,
   onDone: () => void,
   onError: (err: Error) => void
@@ -20,8 +17,6 @@ export async function streamPost(
       },
       body: JSON.stringify({
         messages,
-        profile: getUserProfile(),
-        useOnline,
       }),
     });
 

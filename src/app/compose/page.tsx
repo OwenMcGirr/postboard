@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
-import { Sparkles, RefreshCw, Send, X, CheckCircle, XCircle, Loader } from "lucide-react";
+import { Sparkles, RefreshCw, Send, X, CheckCircle, XCircle, Loader, Bookmark } from "lucide-react";
 import { useAccounts, useJobStatus } from "@/lib/hooks";
 import { usePublerClient } from "@/lib/use-publer-client";
 import { streamPost, Message } from "@/lib/ai-client";
-import { getAiOnlinePreference, setAiOnlinePreference } from "@/lib/ai-online-preference";
+import { isMemoryConfigured } from "@/lib/convex";
+import { saveWritingExample } from "@/lib/memory-client";
 
 type Stage = "brief" | "compose" | "schedule" | "done";
 
@@ -18,7 +19,8 @@ export default function ComposePage() {
   const [streaming, setStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiError, setAiError] = useState("");
-  const [useOnline, setUseOnline] = useState(getAiOnlinePreference);
+  const [exampleSaved, setExampleSaved] = useState(false);
+  const [exampleSaving, setExampleSaving] = useState(false);
 
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
@@ -28,6 +30,7 @@ export default function ComposePage() {
 
   const { status } = useJobStatus(jobId);
   const abortRef = useRef(false);
+  const memoryEnabled = isMemoryConfigured();
 
   function generate(userMessage: string, isRefinement = false) {
     const previousPostText = postText;
@@ -49,7 +52,6 @@ export default function ComposePage() {
     let buffer = "";
     streamPost(
       newMessages,
-      useOnline,
       (chunk) => {
         if (abortRef.current) return;
         buffer += chunk;
@@ -96,6 +98,8 @@ export default function ComposePage() {
     setSubmitError("");
     setAiError("");
     setStreaming(false);
+    setExampleSaved(false);
+    setExampleSaving(false);
   }
 
   async function scheduleAt(isoTimestamp: string) {
@@ -142,10 +146,17 @@ export default function ComposePage() {
     await scheduleAt(new Date(Date.now() + 2 * 60 * 1000).toISOString());
   }
 
-  function handleOnlineToggle(e: React.ChangeEvent<HTMLInputElement>) {
-    const nextValue = e.target.checked;
-    setUseOnline(nextValue);
-    setAiOnlinePreference(nextValue);
+  async function handleSaveExample() {
+    if (!postText.trim() || exampleSaving) return;
+    setExampleSaving(true);
+    try {
+      await saveWritingExample(postText.trim(), "Approved example", brief.trim() || undefined);
+      setExampleSaved(true);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Failed to save writing example.");
+    } finally {
+      setExampleSaving(false);
+    }
   }
 
   if (status === "complete") {
@@ -183,21 +194,6 @@ export default function ComposePage() {
           </button>
         )}
       </div>
-
-      {stage !== "done" && (
-        <label className="flex items-start gap-3 rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3">
-          <input
-            type="checkbox"
-            checked={useOnline}
-            onChange={handleOnlineToggle}
-            className="mt-0.5 rounded border-gray-600 bg-gray-800 text-sky-500 focus:ring-sky-500"
-          />
-          <div>
-            <p className="text-sm font-medium text-white">Use web access</p>
-            <p className="text-xs text-gray-400">Uses the online model variant for fresher context.</p>
-          </div>
-        </label>
-      )}
 
       {/* Brief input */}
       {stage === "brief" && (
@@ -305,6 +301,15 @@ export default function ComposePage() {
               >
                 <Sparkles className="w-4 h-4" />
                 Regenerate
+              </button>
+              <button
+                onClick={handleSaveExample}
+                disabled={!memoryEnabled || !postText.trim() || exampleSaving || exampleSaved}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                title={memoryEnabled ? undefined : "Configure Convex memory to save writing examples."}
+              >
+                <Bookmark className="w-4 h-4" />
+                {exampleSaved ? "Saved as example" : exampleSaving ? "Saving..." : "Save as example"}
               </button>
             </div>
           )}

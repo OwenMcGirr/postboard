@@ -5,4 +5,11 @@ services:
       - "127.0.0.1:3000:3000"
     env_file:
       - .env
+    environment:
+      CODEX_HOME: /codex-home
     restart: unless-stopped
+    volumes:
+      - codex-home:/codex-home
+
+volumes:
+  codex-home:
