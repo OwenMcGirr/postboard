@@ -62,6 +62,7 @@ function getLastErrorMessage(events) {
 
 function buildArgs({ prompt, model, allowSearch }) {
   const args = [
+    ...(allowSearch ? ["--search"] : []),
     "exec",
     "--skip-git-repo-check",
     "--ignore-rules",
@@ -75,9 +76,6 @@ function buildArgs({ prompt, model, allowSearch }) {
   const selectedModel = normalizeModel(model);
   if (selectedModel) {
     args.push("-m", selectedModel);
-  }
-  if (allowSearch) {
-    args.push("--search");
   }
   args.push(prompt);
   return args;
