@@ -1,5 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+ARG VITE_CONVEX_URL=""
+ENV VITE_CONVEX_URL=$VITE_CONVEX_URL
 
 COPY package*.json ./
 RUN npm ci
