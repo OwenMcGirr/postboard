@@ -24,8 +24,27 @@ function normalizePostText(text?: string) {
   return String(text || "").trim();
 }
 
+function getPostAccountIds(post: PublerPost) {
+  if (Array.isArray(post.accounts) && post.accounts.length > 0) {
+    return post.accounts.map((account) => account.id);
+  }
+
+  return typeof post.account_id === "string" && post.account_id.trim().length > 0 ? [post.account_id] : [];
+}
+
+function getPostAccountNames(post: PublerPost, accountsById: Map<string, PublerAccount>) {
+  if (Array.isArray(post.accounts) && post.accounts.length > 0) {
+    return post.accounts.map((account) => account.name);
+  }
+
+  return getPostAccountIds(post)
+    .map((accountId) => accountsById.get(accountId)?.name)
+    .filter((name): name is string => typeof name === "string" && name.trim().length > 0);
+}
+
 function PostCard({
   post,
+  accountNames,
   onDelete,
   canImport,
   selected,
@@ -35,6 +54,7 @@ function PostCard({
   onSaveToMemory,
 }: {
   post: PublerPost;
+  accountNames: string[];
   onDelete: (id: string) => Promise<void>;
   canImport: boolean;
   selected: boolean;
@@ -80,9 +100,9 @@ function PostCard({
             <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
               {post.text ?? "(no text)"}
             </p>
-            {Array.isArray(post.accounts) && post.accounts.length > 0 && (
+            {accountNames.length > 0 && (
               <p className="mt-2 text-xs text-gray-500">
-                {post.accounts.map((account) => account.name).join(", ")}
+                {accountNames.join(", ")}
               </p>
             )}
           </div>
@@ -145,6 +165,7 @@ export default function PostsPage() {
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { posts, isLoading, isError, mutate } = usePosts({ state: filter, accountIds: selectedAccountIds });
   const { examples, mutate: mutateExamples } = useMemoryExamples(memoryEnabled);
+  const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
 
   useEffect(() => {
     setSelectedPostIds([]);
@@ -213,8 +234,8 @@ export default function PostsPage() {
         postsToImport.map((post) => ({
           id: post.id,
           text: post.text ?? "",
-          accountIds: Array.isArray(post.accounts) ? post.accounts.map((account) => account.id) : [],
-          accountNames: Array.isArray(post.accounts) ? post.accounts.map((account) => account.name) : [],
+          accountIds: getPostAccountIds(post),
+          accountNames: getPostAccountNames(post, accountsById),
           publishedAt: post.created_at,
         }))
       );
@@ -375,6 +396,7 @@ export default function PostsPage() {
               <PostCard
                 key={post.id}
                 post={post}
+                accountNames={getPostAccountNames(post, accountsById)}
                 onDelete={handleDelete}
                 canImport={canImport}
                 selected={selectedPostIds.includes(post.id)}

@@ -44,6 +44,7 @@ export interface PublerPost {
   state: "scheduled" | "published" | "draft";
   scheduled_at?: string;
   created_at?: string;
+  account_id?: string;
   accounts?: PublerAccount[];
   media?: PublerMedia[];
 }
