@@ -60,6 +60,7 @@ export class PublerClient {
     const query = new URLSearchParams();
     if (params?.state) query.set("state", params.state);
     if (params?.page != null) query.set("page", String(params.page));
+    if (params?.accountIds?.length) query.set("account_ids", params.accountIds.join(","));
     const qs = query.toString();
     return this.request<{ posts: PublerPost[] }>(`/posts${qs ? `?${qs}` : ""}`);
   }

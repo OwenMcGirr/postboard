@@ -50,6 +50,11 @@ export interface WritingExample {
   _id: string;
   text: string;
   label: string;
+  sourceType?: string;
+  sourcePostId?: string;
+  sourceAccountIds?: string[];
+  sourceAccountNames?: string[];
+  publishedAt?: string;
   sourceBrief?: string;
   createdAt: number;
 }

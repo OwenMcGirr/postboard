@@ -363,6 +363,14 @@ async function saveWritingExample({ text, label, sourceBrief }) {
   });
 }
 
+async function importPostsAsExamples(posts) {
+  const client = requireConvex();
+  return await client.mutation(anyApi.memory.importWritingExamplesFromPosts, {
+    posts,
+    now: now(),
+  });
+}
+
 async function previewResearch(target) {
   return await runResearchPreview(target);
 }
@@ -429,6 +437,7 @@ module.exports = {
   getExamples,
   getProfile,
   getSettingsState,
+  importPostsAsExamples,
   importLegacyProfile,
   populateMemoryFromResearch,
   previewResearch,

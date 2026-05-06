@@ -88,3 +88,18 @@ export function saveWritingExample(text: string, label: string, sourceBrief?: st
     body: JSON.stringify({ text, label, sourceBrief }),
   });
 }
+
+export function importPostsAsExamples(
+  posts: Array<{
+    id: string;
+    text: string;
+    accountIds: string[];
+    accountNames: string[];
+    publishedAt?: string;
+  }>
+) {
+  return request<{ imported: number; skipped: number }>("/api/memory/examples/import_posts", {
+    method: "POST",
+    body: JSON.stringify({ posts }),
+  });
+}

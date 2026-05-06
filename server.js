@@ -10,6 +10,7 @@ const {
   getExamples,
   getProfile,
   getSettingsState,
+  importPostsAsExamples,
   importLegacyProfile,
   populateMemoryFromResearch,
   previewResearch,
@@ -269,6 +270,43 @@ app.post("/api/memory/examples", async (req, res) => {
   }
 });
 
+app.post("/api/memory/examples/import_posts", async (req, res) => {
+  try {
+    const posts = Array.isArray(req.body?.posts) ? req.body.posts : [];
+    if (posts.length === 0) {
+      res.status(400).json({ message: "posts is required." });
+      return;
+    }
+
+    const normalizedPosts = posts
+      .map((post) => ({
+        id: typeof post?.id === "string" ? post.id.trim() : "",
+        text: typeof post?.text === "string" ? post.text : "",
+        accountIds: Array.isArray(post?.accountIds)
+          ? post.accountIds
+              .filter((value) => typeof value === "string" && value.trim())
+              .map((value) => value.trim())
+          : [],
+        accountNames: Array.isArray(post?.accountNames)
+          ? post.accountNames
+              .filter((value) => typeof value === "string" && value.trim())
+              .map((value) => value.trim())
+          : [],
+        publishedAt: typeof post?.publishedAt === "string" ? post.publishedAt : undefined,
+      }))
+      .filter((post) => post.id && post.text.trim());
+
+    if (normalizedPosts.length === 0) {
+      res.status(400).json({ message: "No valid posts were provided." });
+      return;
+    }
+
+    res.json(await importPostsAsExamples(normalizedPosts));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 app.get("/api/me", async (_req, res) => {
   try {
     const response = await publerRequest("/users/me");
@@ -292,9 +330,37 @@ app.get("/api/posts", async (req, res) => {
     const query = new URLSearchParams();
     if (typeof req.query.state === "string") query.set("state", req.query.state);
     if (typeof req.query.page === "string") query.set("page", req.query.page);
+    const accountIds =
+      typeof req.query.account_ids === "string"
+        ? req.query.account_ids
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : [];
+    if (accountIds.length > 0) {
+      query.set("account_ids", accountIds.join(","));
+    }
     const qs = query.toString();
     const response = await publerRequest(`/posts${qs ? `?${qs}` : ""}`);
-    res.json(await response.json());
+    const payload = await response.json();
+
+    if (accountIds.length === 0 || !Array.isArray(payload?.posts)) {
+      res.json(payload);
+      return;
+    }
+
+    const filteredPosts = payload.posts.filter((post) =>
+      Array.isArray(post?.accounts) &&
+      post.accounts.some(
+        (account) => account && typeof account.id === "string" && accountIds.includes(account.id)
+      )
+    );
+
+    res.json({
+      ...payload,
+      posts: filteredPosts,
+      total: filteredPosts.length,
+    });
   } catch (err) {
     sendError(res, err);
   }

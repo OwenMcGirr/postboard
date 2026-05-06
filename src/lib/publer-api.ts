@@ -66,6 +66,7 @@ export interface SchedulePostPayload {
 export interface PostsQueryParams {
   state?: "scheduled" | "published" | "draft";
   page?: number;
+  accountIds?: string[];
 }
 
 export interface MediaListParams {

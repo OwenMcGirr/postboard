@@ -1,6 +1,7 @@
 import useSWR from "swr";
 import { usePublerClient } from "./use-publer-client";
 import { PostsQueryParams, MediaListParams } from "./publer-api";
+import { WritingExample } from "./memory-types";
 
 export function useMe() {
   const client = usePublerClient();
@@ -21,11 +22,27 @@ export function useAccounts() {
 export function usePosts(params: PostsQueryParams) {
   const client = usePublerClient();
   const { data, error, isLoading, mutate } = useSWR(
-    ["posts", params.state ?? "all", params.page ?? 0],
+    ["posts", params.state ?? "all", params.page ?? 0, (params.accountIds ?? []).join(",")],
     () => client.getPosts(params),
     { revalidateOnFocus: false, dedupingInterval: 10000 }
   );
   return { posts: data?.posts ?? [], isLoading, isError: !!error, mutate };
+}
+
+export function useMemoryExamples(enabled = true) {
+  const { data, error, isLoading, mutate } = useSWR(
+    enabled ? "memory_examples" : null,
+    async () => {
+      const response = await fetch("/api/memory/examples");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return (await response.json()) as WritingExample[];
+    },
+    { revalidateOnFocus: false }
+  );
+
+  return { examples: data ?? [], isLoading, isError: !!error, mutate };
 }
 
 export function useMedia(params?: MediaListParams) {
