@@ -1,6 +1,9 @@
 services:
   postboard:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_CONVEX_URL: ${VITE_CONVEX_URL-}
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
