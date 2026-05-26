@@ -31,6 +31,7 @@ const publerWorkspaceId = process.env.PUBLER_WORKSPACE_ID || "";
 
 const basicAuthUser = process.env.BASIC_AUTH_USERNAME || "postboard";
 const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD || "";
+const defaultComposeCodexTimeoutMs = 180000;
 
 function envFlag(name, defaultValue = false) {
   const value = String(process.env[name] || "").trim().toLowerCase();
@@ -458,18 +459,26 @@ app.post("/api/ai/compose", async (req, res) => {
       .reverse()
       .find((message) => message && message.role === "user" && typeof message.content === "string");
 
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Cache-Control", "no-store");
-
     const memory = await getComposeContext(latestUserMessage?.content || "");
     const prompt = buildComposePrompt(messages, memory);
+
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+
+    function writeComposeEvent(event) {
+      res.write(`${JSON.stringify(event)}\n`);
+    }
+
     const result = await runCodex({
       prompt,
       model: process.env.CODEX_MODEL,
       allowSearch: envFlag("CODEX_ALLOW_SEARCH"),
-      timeoutMs: Number(process.env.CODEX_TIMEOUT_MS || 60000),
+      timeoutMs: Number(process.env.CODEX_TIMEOUT_MS || defaultComposeCodexTimeoutMs),
+      onActivity: (text) => writeComposeEvent({ type: "activity", text }),
     });
-    res.write(result.text);
+
+    writeComposeEvent({ type: "result", text: result.text });
+    writeComposeEvent({ type: "done" });
     res.end();
   } catch (err) {
     if (!res.headersSent) {
@@ -477,6 +486,12 @@ app.post("/api/ai/compose", async (req, res) => {
       return;
     }
 
+    res.write(
+      `${JSON.stringify({
+        type: "error",
+        message: err instanceof Error ? err.message : "AI generation failed.",
+      })}\n`
+    );
     res.end();
   }
 });
