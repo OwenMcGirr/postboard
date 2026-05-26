@@ -32,6 +32,15 @@ const publerWorkspaceId = process.env.PUBLER_WORKSPACE_ID || "";
 const basicAuthUser = process.env.BASIC_AUTH_USERNAME || "postboard";
 const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD || "";
 
+function envFlag(name, defaultValue = false) {
+  const value = String(process.env[name] || "").trim().toLowerCase();
+  if (!value) {
+    return defaultValue;
+  }
+
+  return ["1", "true", "yes", "on"].includes(value);
+}
+
 function requireEnv(name, value) {
   if (!value) {
     const err = new Error(`${name} is not configured.`);
@@ -457,7 +466,7 @@ app.post("/api/ai/compose", async (req, res) => {
     const result = await runCodex({
       prompt,
       model: process.env.CODEX_MODEL,
-      allowSearch: false,
+      allowSearch: envFlag("CODEX_ALLOW_SEARCH"),
       timeoutMs: Number(process.env.CODEX_TIMEOUT_MS || 60000),
     });
     res.write(result.text);
