@@ -19,6 +19,7 @@ export default function ComposePage() {
   const [streaming, setStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiError, setAiError] = useState("");
+  const [activityLog, setActivityLog] = useState<string[]>([]);
   const [exampleSaved, setExampleSaved] = useState(false);
   const [exampleSaving, setExampleSaving] = useState(false);
 
@@ -36,7 +37,9 @@ export default function ComposePage() {
     const previousPostText = postText;
     abortRef.current = false;
     setAiError("");
+    setActivityLog([]);
     setStreaming(true);
+    setExampleSaved(false);
     if (!isRefinement) {
       setPostText("");
     }
@@ -48,18 +51,29 @@ export default function ComposePage() {
 
     const newMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(newMessages);
+    let finalText = previousPostText;
 
-    let buffer = "";
     streamPost(
       newMessages,
-      (chunk) => {
+      (activity) => {
         if (abortRef.current) return;
-        buffer += chunk;
-        setPostText(buffer);
+        setActivityLog((prev) => {
+          if (prev[prev.length - 1] === activity.text) {
+            return prev;
+          }
+
+          const next = [...prev, activity.text];
+          return next.slice(-12);
+        });
+      },
+      (text) => {
+        if (abortRef.current) return;
+        finalText = text;
+        setPostText(text);
       },
       () => {
         setStreaming(false);
-        setMessages((prev) => [...prev, { role: "assistant", content: buffer }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: finalText }]);
       },
       (err) => {
         setStreaming(false);
@@ -98,6 +112,7 @@ export default function ComposePage() {
     setSubmitError("");
     setAiError("");
     setStreaming(false);
+    setActivityLog([]);
     setExampleSaved(false);
     setExampleSaving(false);
   }
@@ -226,6 +241,23 @@ export default function ComposePage() {
               <XCircle className="w-4 h-4 shrink-0" />
               {aiError}
             </p>
+          )}
+
+          {(streaming || activityLog.length > 0) && (
+            <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                <Loader className={`w-4 h-4 ${streaming ? "animate-spin text-sky-400" : ""}`} />
+                Codex activity
+              </div>
+              <div className="mt-3 space-y-2 font-mono text-xs text-gray-300">
+                {activityLog.length === 0 && streaming && <p>Waiting for Codex to start work...</p>}
+                {activityLog.map((entry, index) => (
+                  <p key={`${index}-${entry}`} className="break-words">
+                    {entry}
+                  </p>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="relative">

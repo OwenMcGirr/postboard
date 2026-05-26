@@ -36,7 +36,7 @@ cp .env.example .env
 | `VITE_CONVEX_URL` | Convex deployment URL exposed to the client |
 | `CODEX_MODEL` | Optional Codex model override. Leave blank to use the CLI default for your login type |
 | `CODEX_ALLOW_SEARCH` | Set to `true` to allow normal compose requests to use Codex web search |
-| `CODEX_TIMEOUT_MS` | Compose timeout in milliseconds |
+| `CODEX_TIMEOUT_MS` | Compose timeout in milliseconds. Defaults to `180000` for URL-heavy drafts |
 | `BASIC_AUTH_USERNAME` | Username for optional site-level Basic Auth |
 | `BASIC_AUTH_PASSWORD` | Password for optional site-level Basic Auth. Leave blank to disable Basic Auth |
 
@@ -105,6 +105,7 @@ Important notes:
 - that volume preserves the ChatGPT device login across redeploys
 - if you set `CODEX_MODEL`, it must be compatible with the auth type in that environment
 - if you want compose to browse the web during normal drafting, set `CODEX_ALLOW_SEARCH=true`
+- the Compose screen now shows live Codex activity lines while a draft is in progress
 
 ## Memory flow
 

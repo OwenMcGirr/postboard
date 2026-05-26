@@ -41,6 +41,79 @@ function normalizeModel(model) {
   return String(model || "").trim();
 }
 
+function stripAnsi(text) {
+  return String(text || "").replace(/\u001b\[[0-9;]*m/g, "");
+}
+
+function createLineBuffer(onLine) {
+  let buffer = "";
+
+  return {
+    push(chunk) {
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf("\n");
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        onLine(line);
+        newlineIndex = buffer.indexOf("\n");
+      }
+    },
+    flush() {
+      if (buffer) {
+        onLine(buffer);
+        buffer = "";
+      }
+    },
+  };
+}
+
+function summarizeStdoutEvent(event) {
+  if (!event || typeof event !== "object") {
+    return "";
+  }
+
+  if (event.type === "turn.started") {
+    return "Starting Codex run";
+  }
+
+  if (event.type === "item.started" && event.item?.type && event.item.type !== "agent_message") {
+    return `${event.item.type} started`;
+  }
+
+  if (event.type === "item.completed" && event.item?.type && event.item.type !== "agent_message") {
+    return `${event.item.type} completed`;
+  }
+
+  if (event.type === "turn.completed") {
+    return "Draft ready";
+  }
+
+  return "";
+}
+
+function summarizeStderrLine(line) {
+  const text = stripAnsi(line).trim();
+  if (!text) {
+    return "";
+  }
+
+  if (
+    /^web search:/i.test(text) ||
+    /^mcp:/i.test(text) ||
+    /^shell /i.test(text) ||
+    /^exec /i.test(text)
+  ) {
+    return text;
+  }
+
+  if (/^warning: Codex could not find bubblewrap/i.test(text)) {
+    return "Checking sandbox prerequisites";
+  }
+
+  return "";
+}
+
 function getLastErrorMessage(events) {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
@@ -81,7 +154,7 @@ function buildArgs({ prompt, model, allowSearch }) {
   return args;
 }
 
-function runCodex({ prompt, model, allowSearch = false, timeoutMs = 60000 }) {
+function runCodex({ prompt, model, allowSearch = false, timeoutMs = 60000, onActivity }) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [getCodexBinary(), ...buildArgs({ prompt, model, allowSearch })], {
       cwd: process.cwd(),
@@ -92,6 +165,43 @@ function runCodex({ prompt, model, allowSearch = false, timeoutMs = 60000 }) {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let lastActivity = "";
+
+    function emitActivity(text) {
+      if (typeof onActivity !== "function") {
+        return;
+      }
+
+      const trimmed = String(text || "").trim();
+      if (!trimmed || trimmed === lastActivity) {
+        return;
+      }
+
+      lastActivity = trimmed;
+      onActivity(trimmed);
+    }
+
+    const stdoutLines = createLineBuffer((line) => {
+      const trimmed = String(line || "").trim();
+      if (!trimmed.startsWith("{")) {
+        return;
+      }
+
+      try {
+        const event = JSON.parse(trimmed);
+        const summary = summarizeStdoutEvent(event);
+        if (summary) {
+          emitActivity(summary);
+        }
+      } catch {}
+    });
+
+    const stderrLines = createLineBuffer((line) => {
+      const summary = summarizeStderrLine(line);
+      if (summary) {
+        emitActivity(summary);
+      }
+    });
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -103,10 +213,12 @@ function runCodex({ prompt, model, allowSearch = false, timeoutMs = 60000 }) {
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
+      stdoutLines.push(chunk);
     });
 
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
+      stderrLines.push(chunk);
     });
 
     child.on("error", (error) => {
@@ -116,6 +228,8 @@ function runCodex({ prompt, model, allowSearch = false, timeoutMs = 60000 }) {
 
     child.on("close", (code) => {
       clearTimeout(timer);
+      stdoutLines.flush();
+      stderrLines.flush();
 
       if (timedOut) {
         reject(new Error("Codex inference timed out."));
