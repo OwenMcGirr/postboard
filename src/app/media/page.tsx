@@ -4,6 +4,8 @@ import { useMedia } from "@/lib/hooks";
 import { usePublerClient } from "@/lib/use-publer-client";
 import type { PublerMedia } from "@/lib/publer-api";
 
+const MEDIA_LIBRARY_TYPES = ["photo", "video", "gif"];
+
 function getMediaPreviewUrl(item: PublerMedia) {
   if (item.thumbnail) return item.thumbnail;
   if (Array.isArray(item.thumbnails)) {
@@ -19,10 +21,15 @@ function getMediaPreviewUrl(item: PublerMedia) {
 
 export default function MediaPage() {
   const client = usePublerClient();
-  const { media, isLoading, isError, mutate } = useMedia();
+  const { media, isLoading, isError, mutate } = useMedia({ types: MEDIA_LIBRARY_TYPES });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [recentUploads, setRecentUploads] = useState<PublerMedia[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const visibleMedia = [
+    ...recentUploads,
+    ...media.filter((item) => !recentUploads.some((upload) => upload.id === item.id)),
+  ];
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -33,7 +40,8 @@ export default function MediaPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("in_library", "true");
-      await client.uploadMedia(formData);
+      const uploaded = await client.uploadMedia(formData);
+      setRecentUploads((prev) => [uploaded, ...prev.filter((item) => item.id !== uploaded.id)]);
       await mutate();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
@@ -80,17 +88,18 @@ export default function MediaPage() {
         <p className="text-red-400 text-sm">Failed to load media.</p>
       )}
 
-      {!isLoading && !isError && media.length === 0 && (
+      {!isLoading && !isError && visibleMedia.length === 0 && (
         <div className="text-center py-16 text-gray-500">
           <ImageIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">No media yet. Upload something to get started.</p>
         </div>
       )}
 
-      {!isLoading && !isError && media.length > 0 && (
+      {!isLoading && !isError && visibleMedia.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {media.map((item) => {
+          {visibleMedia.map((item) => {
             const thumb = getMediaPreviewUrl(item);
+            const isRecent = recentUploads.some((upload) => upload.id === item.id);
             return (
               <div key={item.id} className="group aspect-square bg-gray-900 border border-gray-800 rounded-xl overflow-hidden relative">
                 {thumb ? (
@@ -103,6 +112,11 @@ export default function MediaPage() {
                 {item.name && (
                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <p className="text-xs text-white truncate">{item.name}</p>
+                  </div>
+                )}
+                {isRecent && (
+                  <div className="absolute top-2 left-2 bg-sky-500 text-white text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full">
+                    Uploaded
                   </div>
                 )}
               </div>

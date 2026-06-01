@@ -96,8 +96,11 @@ export interface PostsQueryParams {
 }
 
 export interface MediaListParams {
+  ids?: string[];
   page?: number;
   types?: string[];
+  used?: boolean[];
+  source?: string[];
   search?: string;
 }
 
