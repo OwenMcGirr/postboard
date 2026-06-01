@@ -1,21 +1,27 @@
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
+const crypto = require("crypto");
+const { z } = require("zod");
 const { runCodex } = require("./server/codex");
+const { getConvexUrl } = require("./server/convex-client");
 const {
   answerInterview,
   buildComposePrompt,
   completeInterview,
+  exportAgentContext,
   getComposeContext,
   getExamples,
   getProfile,
   getSettingsState,
+  ingestAgentContext,
   importPostsAsExamples,
   importLegacyProfile,
   populateMemoryFromResearch,
   previewResearch,
   saveResearch,
   saveWritingExample,
+  searchAgentContext,
   startInterview,
   updateCanonicalSummary,
 } = require("./server/memory");
@@ -32,6 +38,80 @@ const publerWorkspaceId = process.env.PUBLER_WORKSPACE_ID || "";
 const basicAuthUser = process.env.BASIC_AUTH_USERNAME || "postboard";
 const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD || "";
 const defaultComposeCodexTimeoutMs = 180000;
+const agentContextKinds = [
+  "project",
+  "person",
+  "decision",
+  "operation",
+  "credential_map",
+  "writing_context",
+  "fact",
+  "other",
+];
+const secretLikePattern =
+  /sk-proj-|sk-|ghp_|xoxb-|-----BEGIN PRIVATE KEY-----|-----BEGIN OPENSSH PRIVATE KEY-----/;
+
+const OptionalTrimmedString = (maxLength) =>
+  z.preprocess(
+    (value) => {
+      if (typeof value !== "string") {
+        return value;
+      }
+      const trimmed = value.trim();
+      return trimmed || undefined;
+    },
+    z.string().max(maxLength).optional()
+  );
+
+const AgentContextIngestSchema = z
+  .object({
+    source: z.string().trim().min(1).max(120),
+    kind: z.enum(agentContextKinds),
+    title: z.string().trim().min(1).max(200),
+    content: z.string().trim().min(1).max(10000),
+    tags: z
+      .array(z.string().trim().min(1).max(60))
+      .max(20)
+      .optional()
+      .default([]),
+    url: z.preprocess(
+      (value) => {
+        if (typeof value !== "string") {
+          return value;
+        }
+        const trimmed = value.trim();
+        return trimmed || undefined;
+      },
+      z.string().url().max(500).optional()
+    ),
+    externalId: OptionalTrimmedString(240),
+    importance: z.number().min(1).max(10).optional().default(5),
+  })
+  .strict()
+  .transform((note) => ({
+    ...note,
+    tags: Array.from(new Set(note.tags.map((tag) => tag.trim().toLowerCase()))),
+  }));
+
+const AgentContextSearchSchema = z.object({
+  q: OptionalTrimmedString(500),
+  kind: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") {
+        return value;
+      }
+      const trimmed = value.trim();
+      return trimmed || undefined;
+    },
+    z.enum(agentContextKinds).optional()
+  ),
+  tag: OptionalTrimmedString(60),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+});
+
+const AgentContextExportSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional().default(100),
+});
 
 function envFlag(name, defaultValue = false) {
   const value = String(process.env[name] || "").trim().toLowerCase();
@@ -73,6 +153,68 @@ function basicAuth(req, res, next) {
 
   res.set("WWW-Authenticate", 'Basic realm="Postboard"');
   res.status(401).send("Unauthorized");
+}
+
+function agentContextAuth(req, res, next) {
+  const expectedToken = String(process.env.AGENT_CONTEXT_TOKEN || "").trim();
+  if (!expectedToken || !getConvexUrl()) {
+    res.status(503).json({ message: "Agent context ingest is not configured." });
+    return;
+  }
+
+  const header = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const actual = Buffer.from(match[1], "utf8");
+  const expected = Buffer.from(expectedToken, "utf8");
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  next();
+}
+
+function validateAgentContextPayload(schema, payload) {
+  const result = schema.safeParse(payload);
+  if (!result.success) {
+    const err = new Error(result.error.issues[0]?.message || "Invalid request body.");
+    err.status = 400;
+    throw err;
+  }
+  return result.data;
+}
+
+function rejectSecretLikeContent(note) {
+  const values = [
+    note.source,
+    note.kind,
+    note.title,
+    note.content,
+    ...(Array.isArray(note.tags) ? note.tags : []),
+    note.url || "",
+    note.externalId || "",
+  ];
+
+  if (values.some((value) => secretLikePattern.test(String(value || "")))) {
+    const err = new Error("Context note appears to contain a raw secret.");
+    err.status = 400;
+    throw err;
+  }
+}
+
+function contextJsonError(err, _req, res, next) {
+  if (!err) {
+    next();
+    return;
+  }
+
+  const status = typeof err.status === "number" ? err.status : 400;
+  res.status(status).json({ message: err.type === "entity.too.large" ? "Request body is too large." : "Invalid JSON body." });
 }
 
 async function readErrorMessage(response) {
@@ -127,6 +269,39 @@ function sendError(res, err) {
 }
 
 app.disable("x-powered-by");
+const contextRouter = express.Router();
+
+contextRouter.post("/ingest", async (req, res) => {
+  try {
+    const note = validateAgentContextPayload(AgentContextIngestSchema, req.body);
+    rejectSecretLikeContent(note);
+    res.json(await ingestAgentContext(note));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+contextRouter.get("/search", async (req, res) => {
+  try {
+    const query = validateAgentContextPayload(AgentContextSearchSchema, req.query);
+    const notes = await searchAgentContext(query);
+    res.json({ notes });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+contextRouter.get("/export", async (req, res) => {
+  try {
+    const query = validateAgentContextPayload(AgentContextExportSchema, req.query);
+    const notes = await exportAgentContext(query);
+    res.json({ notes });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.use("/api/context", express.json({ limit: "64kb" }), contextJsonError, agentContextAuth, contextRouter);
 app.use(basicAuth);
 
 app.get("/healthz", (_req, res) => {

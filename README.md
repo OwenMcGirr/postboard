@@ -34,6 +34,7 @@ cp .env.example .env
 | `PUBLER_WORKSPACE_ID` | Publer workspace ID |
 | `CONVEX_URL` | Convex deployment URL used by the Express server |
 | `VITE_CONVEX_URL` | Convex deployment URL exposed to the client |
+| `AGENT_CONTEXT_TOKEN` | Shared bearer token for the headless external-agent context API. Use a long random server-only value |
 | `CODEX_MODEL` | Optional Codex model override. Leave blank to use the CLI default for your login type |
 | `CODEX_ALLOW_SEARCH` | Set to `true` to allow normal compose requests to use Codex web search |
 | `CODEX_TIMEOUT_MS` | Compose timeout in milliseconds. Defaults to `180000` for URL-heavy drafts |
@@ -122,6 +123,55 @@ Compose retrieval is deterministic:
 - high-priority facts are included
 - latest writing examples are included
 - saved research notes are included only when they match the current brief
+- external agent context notes are included when they match the brief or have very high importance
+
+## External Agent Context
+
+Trusted agents can send durable notes to Postboard without SSH or Convex credentials. Set `AGENT_CONTEXT_TOKEN` on the server to a long random value, for example:
+
+```bash
+openssl rand -hex 32
+```
+
+If `AGENT_CONTEXT_TOKEN` or Convex is not configured, `/api/context/*` returns `503`. These endpoints are independent from site-level Basic Auth and require:
+
+```http
+Authorization: Bearer <AGENT_CONTEXT_TOKEN>
+```
+
+Ingest a note:
+
+```bash
+curl -X POST https://your-postboard-host/api/context/ingest \
+  -H "Authorization: Bearer $AGENT_CONTEXT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "codex-local",
+    "kind": "project",
+    "title": "useful-topmost",
+    "content": "useful-topmost is a small open-source utility for keeping a chosen window always on top.",
+    "tags": ["project", "github", "launch"],
+    "url": "https://github.com/OwenMcGirr/useful-topmost",
+    "externalId": "github:OwenMcGirr/useful-topmost",
+    "importance": 8
+  }'
+```
+
+Search notes:
+
+```bash
+curl "https://your-postboard-host/api/context/search?q=useful-topmost" \
+  -H "Authorization: Bearer $AGENT_CONTEXT_TOKEN"
+```
+
+Export recent notes:
+
+```bash
+curl "https://your-postboard-host/api/context/export?limit=100" \
+  -H "Authorization: Bearer $AGENT_CONTEXT_TOKEN"
+```
+
+Notes can automatically influence compose prompts when they match the brief. Do not send raw secrets; obvious API keys and private key material are rejected, and `credential_map` notes are inspectable but never auto-injected into compose.
 
 ## Docker
 
@@ -196,5 +246,7 @@ curl http://127.0.0.1:3000/healthz
 
 - Publer credentials stay server-side.
 - Convex memory is single-profile for the whole deployment.
+- `AGENT_CONTEXT_TOKEN` is a shared read/write secret for trusted agents and must stay server-side.
+- Context notes should describe useful facts and locations, not credential values.
 - Web research is manual only and never runs automatically during compose.
 - Move server access to SSH keys instead of relying on passwords.
