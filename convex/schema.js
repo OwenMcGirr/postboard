@@ -54,6 +54,24 @@ export default defineSchema({
     .index("by_target", ["target"])
     .index("by_createdAt", ["createdAt"]),
 
+  agentContextNotes: defineTable({
+    source: v.string(),
+    kind: v.string(),
+    title: v.string(),
+    content: v.string(),
+    tags: v.array(v.string()),
+    url: v.optional(v.string()),
+    externalId: v.optional(v.string()),
+    keywords: v.array(v.string()),
+    importance: v.float64(),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+  })
+    .index("by_externalId", ["externalId"])
+    .index("by_kind", ["kind"])
+    .index("by_updatedAt", ["updatedAt"])
+    .index("by_importance", ["importance"]),
+
   writingExamples: defineTable({
     text: v.string(),
     label: v.string(),

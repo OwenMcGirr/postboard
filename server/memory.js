@@ -102,6 +102,23 @@ function buildComposePrompt(messages, memory) {
     );
   }
 
+  if (Array.isArray(memory?.agentContext) && memory.agentContext.length > 0) {
+    memorySections.push(
+      `External agent context:\n${memory.agentContext
+        .map((note, index) => {
+          const lines = [`${index + 1}. [${note.kind}] ${note.title}`, note.content, `Source: ${note.source}`];
+          if (note.url) {
+            lines.push(`URL: ${note.url}`);
+          }
+          if (Array.isArray(note.tags) && note.tags.length > 0) {
+            lines.push(`Tags: ${note.tags.join(", ")}`);
+          }
+          return lines.join("\n");
+        })
+        .join("\n\n")}`
+    );
+  }
+
   if (Array.isArray(memory?.examples) && memory.examples.length > 0) {
     memorySections.push(
       `Writing examples:\n${memory.examples
@@ -418,6 +435,7 @@ async function getComposeContext(brief) {
       profile: null,
       facts: [],
       sources: [],
+      agentContext: [],
       examples: [],
     };
   }
@@ -428,21 +446,49 @@ async function getComposeContext(brief) {
   });
 }
 
+async function ingestAgentContext(note) {
+  const client = requireConvex();
+  return await client.mutation(anyApi.memory.ingestAgentContext, {
+    ...note,
+    now: now(),
+  });
+}
+
+async function searchAgentContext({ q, kind, tag, limit }) {
+  const client = requireConvex();
+  return await client.query(anyApi.memory.searchAgentContext, {
+    q,
+    kind,
+    tag,
+    limit,
+  });
+}
+
+async function exportAgentContext({ limit }) {
+  const client = requireConvex();
+  return await client.query(anyApi.memory.getAgentContextExport, {
+    limit,
+  });
+}
+
 module.exports = {
   INTERVIEW_QUESTIONS,
   answerInterview,
   buildComposePrompt,
   completeInterview,
+  exportAgentContext,
   getComposeContext,
   getExamples,
   getProfile,
   getSettingsState,
+  ingestAgentContext,
   importPostsAsExamples,
   importLegacyProfile,
   populateMemoryFromResearch,
   previewResearch,
   saveResearch,
   saveWritingExample,
+  searchAgentContext,
   startInterview,
   updateCanonicalSummary,
 };

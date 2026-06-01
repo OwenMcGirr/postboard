@@ -2,6 +2,16 @@ import { queryGeneric, mutationGeneric } from "convex/server";
 import { v } from "convex/values";
 
 const PROFILE_KEY = "default";
+const AGENT_CONTEXT_KINDS = new Set([
+  "project",
+  "person",
+  "decision",
+  "operation",
+  "credential_map",
+  "writing_context",
+  "fact",
+  "other",
+]);
 
 function toKeywords(text) {
   return Array.from(
@@ -12,6 +22,76 @@ function toKeywords(text) {
         .filter((word) => word.length >= 4)
     )
   );
+}
+
+function toAgentContextKeywords(note) {
+  return toKeywords(
+    [
+      note.title,
+      note.content,
+      ...(Array.isArray(note.tags) ? note.tags : []),
+      note.url || "",
+      note.source,
+    ].join(" ")
+  );
+}
+
+function normalizeTags(tags) {
+  return Array.from(
+    new Set(
+      (Array.isArray(tags) ? tags : [])
+        .map((tag) => String(tag || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+function normalizeAgentContextArgs(args) {
+  const source = String(args.source || "").trim();
+  const kind = String(args.kind || "").trim();
+  const title = String(args.title || "").trim();
+  const content = String(args.content || "").trim();
+  const tags = normalizeTags(args.tags);
+  const url = typeof args.url === "string" && args.url.trim() ? args.url.trim() : undefined;
+  const externalId =
+    typeof args.externalId === "string" && args.externalId.trim() ? args.externalId.trim() : undefined;
+  const importance = typeof args.importance === "number" ? args.importance : 5;
+
+  if (!source || source.length > 120) {
+    throw new Error("source must be a non-empty string up to 120 characters.");
+  }
+  if (!AGENT_CONTEXT_KINDS.has(kind)) {
+    throw new Error("kind is invalid.");
+  }
+  if (!title || title.length > 200) {
+    throw new Error("title must be a non-empty string up to 200 characters.");
+  }
+  if (!content || content.length > 10000) {
+    throw new Error("content must be a non-empty string up to 10000 characters.");
+  }
+  if (tags.length > 20 || tags.some((tag) => tag.length > 60)) {
+    throw new Error("tags must include at most 20 values up to 60 characters each.");
+  }
+  if (url && url.length > 500) {
+    throw new Error("url must be up to 500 characters.");
+  }
+  if (externalId && externalId.length > 240) {
+    throw new Error("externalId must be up to 240 characters.");
+  }
+  if (importance < 1 || importance > 10) {
+    throw new Error("importance must be between 1 and 10.");
+  }
+
+  return {
+    source,
+    kind,
+    title,
+    content,
+    tags,
+    url,
+    externalId,
+    importance,
+  };
 }
 
 function sourceMatchesBrief(source, briefKeywords) {
@@ -30,6 +110,61 @@ function sourceMatchesBrief(source, briefKeywords) {
     .toLowerCase();
 
   return briefKeywords.some((keyword) => haystack.includes(keyword));
+}
+
+function agentContextMatchesKeywords(note, keywords) {
+  if (keywords.length === 0) {
+    return false;
+  }
+
+  const haystack = [
+    note.title,
+    note.content,
+    ...(Array.isArray(note.tags) ? note.tags : []),
+    note.url || "",
+    note.source,
+    ...(Array.isArray(note.keywords) ? note.keywords : []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return keywords.some((keyword) => haystack.includes(keyword));
+}
+
+function agentContextMatchesSearch(note, queryKeywords) {
+  if (queryKeywords.length === 0) {
+    return true;
+  }
+
+  const haystack = [
+    note.title,
+    note.content,
+    ...(Array.isArray(note.tags) ? note.tags : []),
+    note.url || "",
+    note.source,
+    ...(Array.isArray(note.keywords) ? note.keywords : []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return queryKeywords.every((keyword) => haystack.includes(keyword));
+}
+
+function publicAgentContextNote(note, truncateContent = false) {
+  const content = truncateContent && note.content.length > 1000 ? `${note.content.slice(0, 1000)}...` : note.content;
+  return {
+    _id: note._id,
+    source: note.source,
+    kind: note.kind,
+    title: note.title,
+    content,
+    tags: note.tags,
+    url: note.url,
+    externalId: note.externalId,
+    importance: note.importance,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  };
 }
 
 async function getProfileDoc(ctx) {
@@ -149,11 +284,12 @@ export const getComposeContext = queryGeneric({
   },
   handler: async (ctx, args) => {
     const briefKeywords = toKeywords(args.brief || "");
-    const [profile, facts, sources, examples] = await Promise.all([
+    const [profile, facts, sources, examples, agentContextNotes] = await Promise.all([
       getProfileDoc(ctx),
       ctx.db.query("memoryFacts").withIndex("by_updatedAt").order("desc").collect(),
       ctx.db.query("memorySources").withIndex("by_createdAt").order("desc").take(20),
       ctx.db.query("writingExamples").withIndex("by_createdAt").order("desc").take(5),
+      ctx.db.query("agentContextNotes").withIndex("by_updatedAt").order("desc").take(100),
     ]);
 
     const selectedFacts = facts
@@ -177,6 +313,24 @@ export const getComposeContext = queryGeneric({
         confidence: source.confidence,
       }));
 
+    const selectedAgentContext = agentContextNotes
+      .filter((note) => note.kind !== "credential_map")
+      .filter((note) => note.importance >= 9 || agentContextMatchesKeywords(note, briefKeywords))
+      .sort((a, b) => (b.importance === a.importance ? b.updatedAt - a.updatedAt : b.importance - a.importance))
+      .slice(0, 5)
+      .map((note) => {
+        const publicNote = publicAgentContextNote(note, true);
+        return {
+          kind: publicNote.kind,
+          title: publicNote.title,
+          content: publicNote.content,
+          tags: publicNote.tags,
+          url: publicNote.url,
+          source: publicNote.source,
+          importance: publicNote.importance,
+        };
+      });
+
     return {
       profile: profile
         ? {
@@ -187,6 +341,7 @@ export const getComposeContext = queryGeneric({
         : null,
       facts: selectedFacts,
       sources: selectedSources,
+      agentContext: selectedAgentContext,
       examples: examples.map((example) => ({
         _id: example._id,
         text: example.text,
@@ -200,6 +355,116 @@ export const getComposeContext = queryGeneric({
         createdAt: example.createdAt,
       })),
     };
+  },
+});
+
+export const ingestAgentContext = mutationGeneric({
+  args: {
+    source: v.string(),
+    kind: v.string(),
+    title: v.string(),
+    content: v.string(),
+    tags: v.array(v.string()),
+    url: v.optional(v.string()),
+    externalId: v.optional(v.string()),
+    importance: v.float64(),
+    now: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    const note = normalizeAgentContextArgs(args);
+    const keywords = toAgentContextKeywords(note);
+
+    if (note.externalId) {
+      const existing = await ctx.db
+        .query("agentContextNotes")
+        .withIndex("by_externalId", (q) => q.eq("externalId", note.externalId))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          source: note.source,
+          kind: note.kind,
+          title: note.title,
+          content: note.content,
+          tags: note.tags,
+          url: note.url,
+          externalId: note.externalId,
+          keywords,
+          importance: note.importance,
+          updatedAt: args.now,
+        });
+
+        return {
+          id: existing._id,
+          created: false,
+          updated: true,
+        };
+      }
+    }
+
+    const id = await ctx.db.insert("agentContextNotes", {
+      source: note.source,
+      kind: note.kind,
+      title: note.title,
+      content: note.content,
+      tags: note.tags,
+      url: note.url,
+      externalId: note.externalId,
+      keywords,
+      importance: note.importance,
+      createdAt: args.now,
+      updatedAt: args.now,
+    });
+
+    return {
+      id,
+      created: true,
+      updated: false,
+    };
+  },
+});
+
+export const searchAgentContext = queryGeneric({
+  args: {
+    q: v.optional(v.string()),
+    kind: v.optional(v.string()),
+    tag: v.optional(v.string()),
+    limit: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 20), 1), 50);
+    const queryKeywords = toKeywords(args.q || "");
+    const kind = typeof args.kind === "string" && args.kind.trim() ? args.kind.trim() : "";
+    const tag = typeof args.tag === "string" && args.tag.trim() ? args.tag.trim().toLowerCase() : "";
+    const candidates = await ctx.db
+      .query("agentContextNotes")
+      .withIndex("by_updatedAt")
+      .order("desc")
+      .take(200);
+
+    return candidates
+      .filter((note) => !kind || note.kind === kind)
+      .filter((note) => !tag || note.tags.includes(tag))
+      .filter((note) => agentContextMatchesSearch(note, queryKeywords))
+      .sort((a, b) => (b.importance === a.importance ? b.updatedAt - a.updatedAt : b.importance - a.importance))
+      .slice(0, limit)
+      .map((note) => publicAgentContextNote(note));
+  },
+});
+
+export const getAgentContextExport = queryGeneric({
+  args: {
+    limit: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 100), 1), 500);
+    const notes = await ctx.db
+      .query("agentContextNotes")
+      .withIndex("by_updatedAt")
+      .order("desc")
+      .take(limit);
+
+    return notes.map((note) => publicAgentContextNote(note));
   },
 });
 
