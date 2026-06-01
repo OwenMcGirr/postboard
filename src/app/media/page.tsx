@@ -2,6 +2,20 @@ import { useRef, useState } from "react";
 import { Upload, Image as ImageIcon } from "lucide-react";
 import { useMedia } from "@/lib/hooks";
 import { usePublerClient } from "@/lib/use-publer-client";
+import type { PublerMedia } from "@/lib/publer-api";
+
+function getMediaPreviewUrl(item: PublerMedia) {
+  if (item.thumbnail) return item.thumbnail;
+  if (Array.isArray(item.thumbnails)) {
+    const thumbnail = item.thumbnails.find((candidate) => candidate.small || candidate.real);
+    return thumbnail?.small || thumbnail?.real || item.path;
+  }
+  if (item.thumbnails) {
+    const thumbnail = Object.values(item.thumbnails).find(Boolean);
+    return thumbnail || item.path;
+  }
+  return item.path;
+}
 
 export default function MediaPage() {
   const client = usePublerClient();
@@ -76,7 +90,7 @@ export default function MediaPage() {
       {!isLoading && !isError && media.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {media.map((item) => {
-            const thumb = item.thumbnails ? Object.values(item.thumbnails)[0] : item.path;
+            const thumb = getMediaPreviewUrl(item);
             return (
               <div key={item.id} className="group aspect-square bg-gray-900 border border-gray-800 rounded-xl overflow-hidden relative">
                 {thumb ? (

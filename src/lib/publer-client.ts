@@ -80,7 +80,7 @@ export class PublerClient {
     const query = new URLSearchParams();
     if (params?.page != null) query.set("page", String(params.page));
     if (params?.search) query.set("search", params.search);
-    if (params?.types?.length) query.set("types", params.types.join(","));
+    params?.types?.forEach((type) => query.append("types", type));
     const qs = query.toString();
     return this.request<{ media: PublerMedia[]; total: number }>(
       `/media${qs ? `?${qs}` : ""}`

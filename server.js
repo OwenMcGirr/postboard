@@ -27,7 +27,7 @@ const {
 } = require("./server/memory");
 
 const app = express();
-const upload = multer();
+const upload = multer({ limits: { fileSize: 200 * 1024 * 1024 } });
 const isDev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || (isDev ? 3001 : 3000));
 const publerBaseUrl = process.env.PUBLER_API_BASE || "https://app.publer.com/api/v1";
@@ -594,7 +594,15 @@ app.get("/api/media", async (req, res) => {
     const query = new URLSearchParams();
     if (typeof req.query.page === "string") query.set("page", req.query.page);
     if (typeof req.query.search === "string") query.set("search", req.query.search);
-    if (typeof req.query.types === "string" && req.query.types) query.set("types", req.query.types);
+    const mediaTypes = Array.isArray(req.query.types)
+      ? req.query.types
+      : typeof req.query.types === "string"
+        ? req.query.types.split(",")
+        : [];
+    mediaTypes
+      .map((type) => String(type).trim())
+      .filter(Boolean)
+      .forEach((type) => query.append("types", type));
     const qs = query.toString();
     const response = await publerRequest(`/media${qs ? `?${qs}` : ""}`);
     res.json(await response.json());
@@ -603,7 +611,23 @@ app.get("/api/media", async (req, res) => {
   }
 });
 
-app.post("/api/media", upload.single("file"), async (req, res) => {
+function singleMediaUpload(req, res, next) {
+  upload.single("file")(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({ message: "Media uploads are limited to 200MB." });
+      return;
+    }
+
+    if (err) {
+      next(err);
+      return;
+    }
+
+    next();
+  });
+}
+
+app.post("/api/media", singleMediaUpload, async (req, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ message: "No file uploaded." });

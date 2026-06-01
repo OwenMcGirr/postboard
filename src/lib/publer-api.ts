@@ -23,19 +23,28 @@ export interface PublerAccount {
   status?: string;
 }
 
+export interface PublerMediaThumbnail {
+  id?: string;
+  small?: string;
+  real?: string;
+}
+
 export interface PublerMedia {
   id: string;
   type: string;
   name?: string;
   caption?: string;
   path: string;
-  thumbnails?: Record<string, string>;
+  thumbnail?: string;
+  thumbnails?: PublerMediaThumbnail[] | Record<string, string>;
   created_at?: string;
   updated_at?: string;
   favorite?: boolean;
   in_library?: boolean;
   width?: number;
   height?: number;
+  source?: string | null;
+  validity?: Record<string, unknown>;
 }
 
 export interface PublerPost {
@@ -54,11 +63,27 @@ export interface PublerJobStatus {
   payload?: Record<string, unknown>;
 }
 
+export interface SchedulePostMedia {
+  id: string;
+  type: "photo" | "video";
+  caption?: string;
+  thumbnails?: PublerMediaThumbnail[];
+  default_thumbnail?: number;
+  title?: string;
+}
+
 export interface SchedulePostPayload {
   bulk: {
     state: string;
     posts: Array<{
-      networks: Record<string, { type: string; text: string }>;
+      networks: Record<
+        string,
+        {
+          type: "status" | "photo" | "video";
+          text: string;
+          media?: SchedulePostMedia[];
+        }
+      >;
       accounts: Array<{ id: string; scheduled_at: string }>;
     }>;
   };
