@@ -78,9 +78,12 @@ export class PublerClient {
 
   getMedia(params?: MediaListParams) {
     const query = new URLSearchParams();
+    params?.ids?.forEach((id) => query.append("ids", id));
     if (params?.page != null) query.set("page", String(params.page));
     if (params?.search) query.set("search", params.search);
     params?.types?.forEach((type) => query.append("types", type));
+    params?.used?.forEach((used) => query.append("used", String(used)));
+    params?.source?.forEach((source) => query.append("source", source));
     const qs = query.toString();
     return this.request<{ media: PublerMedia[]; total: number }>(
       `/media${qs ? `?${qs}` : ""}`

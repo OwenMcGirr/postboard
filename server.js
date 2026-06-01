@@ -228,6 +228,9 @@ async function readErrorMessage(response) {
     if (parsed && typeof parsed.message === "string") {
       return parsed.message;
     }
+    if (parsed && typeof parsed.error === "string") {
+      return parsed.error;
+    }
   } catch {}
 
   return text;
@@ -594,18 +597,42 @@ app.get("/api/media", async (req, res) => {
     const query = new URLSearchParams();
     if (typeof req.query.page === "string") query.set("page", req.query.page);
     if (typeof req.query.search === "string") query.set("search", req.query.search);
-    const mediaTypes = Array.isArray(req.query.types)
-      ? req.query.types
-      : typeof req.query.types === "string"
-        ? req.query.types.split(",")
-        : [];
-    mediaTypes
-      .map((type) => String(type).trim())
-      .filter(Boolean)
-      .forEach((type) => query.append("types", type));
+
+    const appendArrayQuery = (sourceKey, targetKey = sourceKey) => {
+      const value = req.query[sourceKey];
+      const values = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+      values
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+        .forEach((item) => query.append(targetKey, item));
+    };
+
+    appendArrayQuery("ids[]", "ids");
+    appendArrayQuery("ids", "ids");
+    appendArrayQuery("types[]", "types");
+    appendArrayQuery("types", "types");
+    appendArrayQuery("used[]", "used");
+    appendArrayQuery("used", "used");
+    appendArrayQuery("source[]", "source");
+    appendArrayQuery("source", "source");
+
+    const hasTypeFilter = Array.from(query.keys()).some((key) => key === "types");
+    if (!hasTypeFilter) {
+      ["photo", "video", "gif"].forEach((type) => query.append("types", type));
+    }
+
+    const hasUsedFilter = Array.from(query.keys()).some((key) => key === "used");
+    if (!hasUsedFilter) {
+      ["true", "false"].forEach((used) => query.append("used", used));
+    }
+
     const qs = query.toString();
     const response = await publerRequest(`/media${qs ? `?${qs}` : ""}`);
-    res.json(await response.json());
+    const payload = await response.json();
+    if (Array.isArray(payload.media)) {
+      payload.media = payload.media.filter((item) => item && item.id);
+    }
+    res.json(payload);
   } catch (err) {
     sendError(res, err);
   }

@@ -48,7 +48,17 @@ export function useMemoryExamples(enabled = true) {
 export function useMedia(params?: MediaListParams, enabled = true) {
   const client = usePublerClient();
   const { data, error, isLoading, mutate } = useSWR(
-    enabled ? ["media", params?.page ?? 0, params?.search ?? "", (params?.types ?? []).join(",")] : null,
+    enabled
+      ? [
+          "media",
+          params?.page ?? 0,
+          params?.search ?? "",
+          (params?.ids ?? []).join(","),
+          (params?.types ?? []).join(","),
+          (params?.used ?? []).join(","),
+          (params?.source ?? []).join(","),
+        ]
+      : null,
     () => client.getMedia(params),
     { revalidateOnFocus: false }
   );
