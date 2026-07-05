@@ -2,6 +2,7 @@ import useSWR from "swr";
 import { usePublerClient } from "./use-publer-client";
 import { PostsQueryParams, MediaListParams } from "./publer-api";
 import { WritingExample } from "./memory-types";
+import { ReleaseAnnouncement, ReleaseWatchRun } from "./release-types";
 
 export function useMe() {
   const client = usePublerClient();
@@ -76,4 +77,36 @@ export function useJobStatus(jobId: string | null) {
     }
   );
   return { status: data?.status, isError: !!error };
+}
+
+export function useReleaseAnnouncements(limit = 20) {
+  const { data, error, isLoading, mutate } = useSWR(
+    ["release_announcements", limit],
+    async () => {
+      const response = await fetch(`/api/releases/announcements?limit=${encodeURIComponent(String(limit))}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return (await response.json()) as ReleaseAnnouncement[];
+    },
+    { refreshInterval: 30000, revalidateOnFocus: true }
+  );
+
+  return { announcements: data ?? [], isLoading, isError: !!error, mutate };
+}
+
+export function useReleaseWatchRuns(limit = 10) {
+  const { data, error, isLoading, mutate } = useSWR(
+    ["release_watch_runs", limit],
+    async () => {
+      const response = await fetch(`/api/releases/runs?limit=${encodeURIComponent(String(limit))}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return (await response.json()) as ReleaseWatchRun[];
+    },
+    { refreshInterval: 30000, revalidateOnFocus: true }
+  );
+
+  return { runs: data ?? [], isLoading, isError: !!error, mutate };
 }

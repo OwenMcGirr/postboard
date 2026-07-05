@@ -22,6 +22,7 @@ const DashboardPage = lazy(() => import("./app/dashboard/page"));
 const ComposePage = lazy(() => import("./app/compose/page"));
 const PostsPage = lazy(() => import("./app/posts/page"));
 const MediaPage = lazy(() => import("./app/media/page"));
+const ReleasesPage = lazy(() => import("./app/releases/page"));
 const SettingsPage = lazy(() => import("./app/settings/page"));
 
 export const router = createBrowserRouter([
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: "/compose", element: withSuspense(ComposePage) },
       { path: "/posts", element: withSuspense(PostsPage) },
       { path: "/media", element: withSuspense(MediaPage) },
+      { path: "/releases", element: withSuspense(ReleasesPage) },
       { path: "/settings", element: withSuspense(SettingsPage) },
     ],
   },
