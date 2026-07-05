@@ -85,4 +85,44 @@ export default defineSchema({
   })
     .index("by_createdAt", ["createdAt"])
     .index("by_sourcePostId", ["sourcePostId"]),
+
+  releaseAnnouncements: defineTable({
+    externalId: v.string(),
+    org: v.string(),
+    owner: v.string(),
+    repo: v.string(),
+    releaseId: v.float64(),
+    tagName: v.string(),
+    releaseName: v.string(),
+    releaseUrl: v.string(),
+    releaseBody: v.optional(v.string()),
+    publishedAt: v.string(),
+    detectedAt: v.float64(),
+    scheduledAt: v.optional(v.string()),
+    status: v.string(),
+    postText: v.optional(v.string()),
+    publerJobId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    attempts: v.float64(),
+    updatedAt: v.float64(),
+  })
+    .index("by_externalId", ["externalId"])
+    .index("by_status", ["status"])
+    .index("by_detectedAt", ["detectedAt"])
+    .index("by_org", ["org"]),
+
+  releaseWatchRuns: defineTable({
+    startedAt: v.float64(),
+    finishedAt: v.optional(v.float64()),
+    status: v.string(),
+    orgs: v.array(v.string()),
+    reposChecked: v.float64(),
+    releasesSeen: v.float64(),
+    announcementsCreated: v.float64(),
+    announcementsSkipped: v.float64(),
+    announcementsFailed: v.float64(),
+    error: v.optional(v.string()),
+  })
+    .index("by_startedAt", ["startedAt"])
+    .index("by_status", ["status"]),
 });
