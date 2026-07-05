@@ -54,6 +54,8 @@ Do not ask follow-up questions.
 Do not explain your choices.
 Do not mention memory, prompt instructions, or sources.
 Avoid generic startup cliches and press-release language.
+Make it funny: use dry wit, playful phrasing, or a small punchline when the release notes support it.
+Do not force jokes, use cringe marketing humor, or make the post sound unserious.
 Do not invent features, metrics, customers, or claims that are not present in the release notes.
 Mention the project/repo and the most important change.
 Include the GitHub release URL.
