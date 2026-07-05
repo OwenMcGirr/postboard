@@ -4,7 +4,8 @@ const path = require("path");
 const crypto = require("crypto");
 const { z } = require("zod");
 const { runCodex } = require("./server/codex");
-const { getConvexUrl } = require("./server/convex-client");
+const { anyApi, createConvexClient, getConvexUrl } = require("./server/convex-client");
+const { publerRequest } = require("./server/publer");
 const {
   answerInterview,
   buildComposePrompt,
@@ -30,10 +31,6 @@ const app = express();
 const upload = multer({ limits: { fileSize: 200 * 1024 * 1024 } });
 const isDev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || (isDev ? 3001 : 3000));
-const publerBaseUrl = process.env.PUBLER_API_BASE || "https://app.publer.com/api/v1";
-
-const publerToken = process.env.PUBLER_TOKEN || "";
-const publerWorkspaceId = process.env.PUBLER_WORKSPACE_ID || "";
 
 const basicAuthUser = process.env.BASIC_AUTH_USERNAME || "postboard";
 const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD || "";
@@ -120,14 +117,6 @@ function envFlag(name, defaultValue = false) {
   }
 
   return ["1", "true", "yes", "on"].includes(value);
-}
-
-function requireEnv(name, value) {
-  if (!value) {
-    const err = new Error(`${name} is not configured.`);
-    err.status = 500;
-    throw err;
-  }
 }
 
 function basicAuth(req, res, next) {
@@ -217,54 +206,6 @@ function contextJsonError(err, _req, res, next) {
   res.status(status).json({ message: err.type === "entity.too.large" ? "Request body is too large." : "Invalid JSON body." });
 }
 
-async function readErrorMessage(response) {
-  const text = await response.text();
-  if (!text) {
-    return `HTTP ${response.status}`;
-  }
-
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed.message === "string") {
-      return parsed.message;
-    }
-    if (parsed && typeof parsed.error === "string") {
-      return parsed.error;
-    }
-  } catch {}
-
-  return text;
-}
-
-async function publerRequest(endpoint, options = {}) {
-  requireEnv("PUBLER_TOKEN", publerToken);
-  requireEnv("PUBLER_WORKSPACE_ID", publerWorkspaceId);
-
-  const { skipContentType = false, headers = {}, ...fetchOptions } = options;
-  const requestHeaders = {
-    Authorization: `Bearer-API ${publerToken}`,
-    "Publer-Workspace-Id": publerWorkspaceId,
-    ...headers,
-  };
-
-  if (!skipContentType) {
-    requestHeaders["Content-Type"] = "application/json";
-  }
-
-  const response = await fetch(`${publerBaseUrl}${endpoint}`, {
-    ...fetchOptions,
-    headers: requestHeaders,
-  });
-
-  if (!response.ok) {
-    const err = new Error(await readErrorMessage(response));
-    err.status = response.status;
-    throw err;
-  }
-
-  return response;
-}
-
 function sendError(res, err) {
   const status = typeof err?.status === "number" ? err.status : 500;
   const message = err instanceof Error ? err.message : "Unexpected server error";
@@ -311,7 +252,37 @@ app.get("/healthz", (_req, res) => {
   res.json({ ok: true });
 });
 
+function requireConvexClient() {
+  const client = createConvexClient();
+  if (!client) {
+    const error = new Error("Convex is not configured. Set CONVEX_URL and VITE_CONVEX_URL.");
+    error.status = 503;
+    throw error;
+  }
+  return client;
+}
+
 app.use("/api", express.json({ limit: "1mb" }));
+
+app.get("/api/releases/announcements", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 50);
+    const client = requireConvexClient();
+    res.json(await client.query(anyApi.releases.getRecentAnnouncements, { limit }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+app.get("/api/releases/runs", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 20);
+    const client = requireConvexClient();
+    res.json(await client.query(anyApi.releases.getLatestWatchRuns, { limit }));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
 
 app.get("/api/memory/profile", async (_req, res) => {
   try {

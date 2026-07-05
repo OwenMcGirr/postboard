@@ -14,5 +14,19 @@ services:
     volumes:
       - codex-home:/codex-home
 
+  release-watcher:
+    build:
+      context: .
+      args:
+        VITE_CONVEX_URL: ${VITE_CONVEX_URL-}
+    env_file:
+      - .env
+    environment:
+      CODEX_HOME: /codex-home
+    restart: unless-stopped
+    volumes:
+      - codex-home:/codex-home
+    command: ["node", "server/jobs/release-watcher.js"]
+
 volumes:
   codex-home:

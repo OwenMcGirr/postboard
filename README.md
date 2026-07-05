@@ -41,6 +41,38 @@ cp .env.example .env
 | `BASIC_AUTH_USERNAME` | Username for optional site-level Basic Auth |
 | `BASIC_AUTH_PASSWORD` | Password for optional site-level Basic Auth. Leave blank to disable Basic Auth |
 
+### Release watcher environment
+
+The Docker Compose `release-watcher` service polls GitHub releases and schedules Publer posts when enabled.
+
+| Variable | Description |
+|---|---|
+| `RELEASE_WATCH_ENABLED` | Set to `true` to enable release polling. Defaults to disabled |
+| `RELEASE_WATCH_ORGS` | Comma-separated GitHub orgs. Defaults to `timberlogs,switchifyapp` |
+| `RELEASE_WATCH_INTERVAL_MS` | Poll interval. Defaults to `900000` |
+| `RELEASE_POST_DELAY_MINUTES` | Delay before scheduled Publer post. Defaults to `10` |
+| `RELEASE_INCLUDE_PRERELEASES` | Set to `true` to include prereleases. Defaults to stable releases only |
+| `RELEASE_WATCH_BASELINE_ON_EMPTY` | Marks existing releases skipped on first run. Defaults to `true` |
+| `RELEASE_POST_ACCOUNT_MAP_JSON` | Per-org Publer account IDs used for release posts |
+| `RELEASE_GITHUB_TOKEN` | Optional GitHub token for higher rate limits and private repos |
+| `RELEASE_CODEX_TIMEOUT_MS` | Release announcement Codex timeout. Defaults to `180000` |
+| `RELEASE_MAX_REPOS_PER_ORG` | Repo scan cap per org. Defaults to `100` |
+| `RELEASE_MAX_RELEASES_PER_REPO` | Release scan cap per repo. Defaults to `5` |
+
+Example account map:
+
+```json
+{"timberlogs":["697f358021637e4ace6ff810","69a19ebc991271043f5a0a23"],"switchifyapp":["697f358c348a6ac73681e2a8"]}
+```
+
+Rollout pattern:
+
+1. Deploy with `RELEASE_WATCH_ENABLED=false`.
+2. Run `npm run convex:deploy`.
+3. Set release watcher env values.
+4. Enable the worker and let the first run baseline current releases.
+5. Future stable GitHub Releases are generated with Codex memory and scheduled in Publer.
+
 ## Convex setup
 
 This repo uses a hosted Convex deployment for memory. Create or select a deployment, then set both:
