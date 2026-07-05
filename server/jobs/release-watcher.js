@@ -270,6 +270,7 @@ async function main() {
   const config = loadConfig();
   if (!config.enabled) {
     console.log("[release-watcher] disabled; set RELEASE_WATCH_ENABLED=true to start polling");
+    setInterval(() => {}, 60 * 60 * 1000);
     await new Promise(() => {});
     return;
   }
